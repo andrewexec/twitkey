@@ -46,7 +46,7 @@ final class Helpers
      */
     public static function h(mixed $value): string
     {
-        return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+        return htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
     }
 
     /**
@@ -421,10 +421,10 @@ final class Helpers
      */
     public static function truncate(string $text, int $length): string
     {
-        if (strlen($text) <= $length) {
+        if (mb_strlen($text) <= $length) {
             return $text;
         }
-        return rtrim(substr($text, 0, max(0, $length - 3))) . '...';
+        return rtrim(mb_substr($text, 0, max(0, $length - 3))) . '...';
     }
 
     /**

@@ -275,7 +275,7 @@ final class User
      */
     public static function setSuspended(int $id, bool $suspended, string $reason = ''): void
     {
-        $reason = $suspended ? substr(trim($reason), 0, 240) : '';
+        $reason = $suspended ? mb_substr(trim($reason), 0, 240) : '';
         if ($suspended && $reason === '') {
             $reason = 'This account broke the Twitkey Terms of Service.';
         }

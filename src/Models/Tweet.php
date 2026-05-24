@@ -15,7 +15,7 @@ final class Tweet
     public static function create(int $userId, string $body, ?int $replyToId = null, ?int $retweetOfId = null, array $metadata = []): array
     {
         $body = trim($body);
-        if (strlen($body) > 140) {
+        if (mb_strlen($body) > 140) {
             throw new \InvalidArgumentException('Tweets are limited to 140 characters.');
         }
         if ($body === '' && empty($metadata['media']) && empty($metadata['gif_url']) && empty($metadata['poll'])) {
@@ -278,8 +278,8 @@ final class Tweet
                 throw new \InvalidArgumentException('You already retweeted this.');
             }
             $body = 'RT @' . $original['username'] . ': ' . $original['body'];
-            if (strlen($body) > 140) {
-                $body = substr($body, 0, 137) . '...';
+            if (mb_strlen($body) > 140) {
+                $body = mb_substr($body, 0, 137) . '...';
             }
             $newTweetId = self::insertTweet($db, $userId, $body, null, $tweetId);
             $db->execute('INSERT INTO retweets (user_id, tweet_id) VALUES (:user_id, :tweet_id)', ['user_id' => $userId, 'tweet_id' => $tweetId]);

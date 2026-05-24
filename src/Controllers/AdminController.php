@@ -43,7 +43,7 @@ final class AdminController
     {
         Helpers::verifyCsrf();
         $admin = Auth::requireAdmin();
-        $message = substr(trim((string)($_POST['message'] ?? '')), 0, 240);
+        $message = mb_substr(trim((string)($_POST['message'] ?? '')), 0, 240);
         $active = isset($_POST['is_active']) && $message !== '' ? 1 : 0;
         Database::instance()->execute('UPDATE site_alerts SET is_active = 0');
         Database::instance()->execute(
@@ -203,7 +203,7 @@ final class AdminController
     {
         Database::instance()->execute(
             'INSERT INTO admin_log (admin_id, action, target_type, target_id, note) VALUES (:admin_id, :action, :target_type, :target_id, :note)',
-            ['admin_id' => $adminId, 'action' => $action, 'target_type' => $targetType, 'target_id' => $targetId, 'note' => substr(trim($note), 0, 240)]
+            ['admin_id' => $adminId, 'action' => $action, 'target_type' => $targetType, 'target_id' => $targetId, 'note' => mb_substr(trim($note), 0, 240)]
         );
     }
 }

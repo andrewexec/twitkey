@@ -97,9 +97,9 @@ final class UserController
             }
             User::updateProfile((int)$user['id'], [
                 'display_name' => trim((string)($_POST['display_name'] ?? '')),
-                'bio' => substr(trim((string)($_POST['bio'] ?? '')), 0, 160),
-                'location' => substr(trim((string)($_POST['location'] ?? '')), 0, 80),
-                'website' => substr($website, 0, 120),
+                'bio' => mb_substr(trim((string)($_POST['bio'] ?? '')), 0, 160),
+                'location' => mb_substr(trim((string)($_POST['location'] ?? '')), 0, 80),
+                'website' => mb_substr($website, 0, 120),
                 'avatar' => $avatar,
                 'background' => $banner,
                 'is_private' => (string)$isPrivate,

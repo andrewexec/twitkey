@@ -32,6 +32,8 @@ if (Helpers::env('APP_DEBUG', 'false') === 'true') {
     ini_set('display_errors', '1');
     error_reporting(E_ALL);
 }
+mb_internal_encoding('UTF-8');
+header('Content-Type: text/html; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: DENY');
 header('Referrer-Policy: strict-origin-when-cross-origin');

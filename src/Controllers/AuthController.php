@@ -54,7 +54,7 @@ final class AuthController
         $confirm = (string)($_POST['password_confirm'] ?? '');
 
         $errors = [];
-        if ($displayName === '' || strlen($displayName) > 80) {
+        if ($displayName === '' || mb_strlen($displayName) > 80) {
             $errors[] = 'Full name is required and must be 80 characters or less.';
         }
         if (!User::usernameAvailable($username)) {

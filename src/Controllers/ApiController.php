@@ -82,7 +82,7 @@ final class ApiController
             }
             $results[] = [
                 'url' => $url,
-                'title' => substr((string)($item['title'] ?? $item['name'] ?? 'GIF'), 0, 80),
+                'title' => mb_substr((string)($item['title'] ?? $item['name'] ?? 'GIF'), 0, 80),
             ];
             if (count($results) >= 12) {
                 break;
@@ -110,7 +110,7 @@ final class ApiController
                 continue;
             }
             $items[] = [
-                'label' => substr((string)($row['display_name'] ?? $row['name'] ?? 'Selected location'), 0, 160),
+                'label' => mb_substr((string)($row['display_name'] ?? $row['name'] ?? 'Selected location'), 0, 160),
                 'lat' => (float)$row['lat'],
                 'lng' => (float)$row['lon'],
             ];
