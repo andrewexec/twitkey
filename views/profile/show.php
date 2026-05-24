@@ -13,6 +13,9 @@ $bannerUrl = Helpers::bannerUrl($profile);
     <div class="profile-info">
         <h1><?= Helpers::h($profile['display_name']) ?> <?= Helpers::renderBadges($profile) ?></h1>
         <div class="profile-username">@<?= Helpers::h($profile['username']) ?></div>
+        <?php if ((int)$profile['is_admin'] === 1): ?>
+            <div class="staff-label">This user is a Administrator of <?= Helpers::h(Helpers::env('APP_NAME', 'Twitkey')) ?></div>
+        <?php endif; ?>
         <p><?= Helpers::h($profile['bio']) ?></p>
         <div class="profile-meta">
             <?php if ($profile['website']): ?><span>Web: <a href="<?= Helpers::h($profile['website']) ?>" rel="nofollow noopener" target="_blank"><?= Helpers::h($profile['website']) ?></a></span><?php endif; ?>

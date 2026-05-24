@@ -249,6 +249,101 @@ select {
     text-decoration: underline;
 }
 
+.landing-hero {
+    min-height: 238px;
+    padding: 22px 22px 18px 150px;
+    border-bottom: 1px solid var(--border-main);
+    background: #fff;
+    position: relative;
+}
+
+.landing-bird-wrap {
+    position: absolute;
+    left: 24px;
+    top: 24px;
+    width: 96px;
+    height: 96px;
+    border-radius: 6px;
+    background: var(--bg-header);
+    border: 1px solid #0e5fa5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.landing-bird {
+    width: 62px;
+    height: 62px;
+}
+
+.landing-hero h1 {
+    font-size: 24px;
+    line-height: 30px;
+    margin: 4px 0 8px;
+}
+
+.landing-hero p {
+    color: #555;
+    font-size: 14px;
+    line-height: 21px;
+    margin: 0 0 14px;
+    max-width: 390px;
+}
+
+.landing-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.landing-primary {
+    display: inline-block;
+    font-weight: bold;
+    padding: 5px 12px;
+}
+
+.landing-stats {
+    color: #777;
+    font-size: 12px;
+}
+
+.landing-stats span {
+    margin-right: 12px;
+}
+
+.landing-login {
+    background: #f7fbfe;
+    border-bottom: 1px solid var(--border-main);
+    padding: 10px;
+}
+
+.landing-login h2 {
+    margin: 0 0 8px;
+}
+
+.landing-login-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    gap: 6px;
+}
+
+.landing-login-form input {
+    border: 1px solid var(--border-input);
+    padding: 5px 6px;
+    min-width: 0;
+}
+
+.landing-preview {
+    background: #fff;
+}
+
+.landing-more {
+    padding: 8px 10px;
+    border-bottom: 1px solid #e8e8e8;
+    font-size: 12px;
+}
+
 .page-wrap {
     width: 900px;
     margin: 0 auto;
@@ -797,6 +892,18 @@ select {
     margin-bottom: 5px;
 }
 
+.staff-label {
+    display: inline-block;
+    background: #f5f5f5;
+    border: 1px solid var(--border-input);
+    color: #555;
+    font-size: 11px;
+    line-height: 15px;
+    padding: 2px 6px;
+    margin: 0 0 5px;
+    border-radius: 2px;
+}
+
 .profile-info p {
     margin: 5px 0;
 }
@@ -1050,6 +1157,15 @@ select {
     display: inline-block;
 }
 
+.admin-actions textarea {
+    width: 180px;
+    min-height: 42px;
+    border: 1px solid var(--border-input);
+    font-size: 11px;
+    padding: 3px 5px;
+    resize: vertical;
+}
+
 .autocomplete-box {
     position: absolute;
     z-index: 1000;
@@ -1112,6 +1228,19 @@ select {
     .header-search {
         margin-left: 58px;
         margin-top: 0;
+    }
+
+    .landing-hero {
+        padding: 138px 14px 18px;
+    }
+
+    .landing-bird-wrap {
+        left: 14px;
+        top: 18px;
+    }
+
+    .landing-login-form {
+        grid-template-columns: 1fr;
     }
 
     .topbar {

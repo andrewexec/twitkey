@@ -32,7 +32,7 @@
 
 <?php if ($currentUser && $canNote): ?>
     <details class="note-form-wrap">
-        <summary>Add a Community Note</summary>
+        <summary><?= (int)$currentUser['is_admin'] === 1 ? 'Add an approved Community Note' : 'Add a Community Note' ?></summary>
         <form action="/tweet/<?= (int)$tweet['id'] ?>/note" method="post" class="settings-form compact-form">
             <?= Helpers::csrfField() ?>
             <textarea name="body" maxlength="500" required></textarea>

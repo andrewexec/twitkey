@@ -23,7 +23,7 @@
             <h2>Conversation with @<?= Helpers::h($selected['username']) ?></h2>
             <div class="dm-messages" data-dm-thread>
                 <?php foreach ($messages as $message): ?>
-                    <?php $sender = ['id' => $message['sender_id'], 'username' => $message['sender_username'], 'display_name' => $message['sender_display_name'], 'avatar' => $message['sender_avatar'], 'is_admin' => $message['sender_is_admin'], 'verified_type' => $message['sender_verified_type']]; ?>
+                    <?php $sender = ['id' => $message['sender_id'], 'username' => $message['sender_username'], 'display_name' => $message['sender_display_name'], 'avatar' => $message['sender_avatar'], 'is_admin' => $message['sender_is_admin'], 'is_system' => $message['sender_is_system'], 'is_verified' => $message['sender_is_verified'], 'verified_type' => $message['sender_verified_type']]; ?>
                     <div class="dm-message<?= (int)$message['sender_id'] === (int)$currentUser['id'] ? ' mine' : '' ?>">
                         <img src="<?= Helpers::avatarUrl($sender) ?>" class="small-avatar" alt="">
                         <div>

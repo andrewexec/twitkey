@@ -243,9 +243,10 @@ final class Helpers
         }
         if (($user['verified_type'] ?? null) === 'business') {
             $html .= '<img src="/img/verified_badge.webp" class="image-badge verified-image-badge" title="Verified Business" alt="Verified Business">';
-        }
-        if (($user['verified_type'] ?? null) === 'government') {
+        } elseif (($user['verified_type'] ?? null) === 'government') {
             $html .= '<img src="/img/verified_badge.webp" class="image-badge verified-image-badge" title="Verified Government" alt="Verified Government">';
+        } elseif ((int)($user['is_verified'] ?? 0) === 1) {
+            $html .= '<img src="/img/verified_badge.webp" class="image-badge verified-image-badge" title="Verified" alt="Verified">';
         }
 
         $affiliation = self::acceptedAffiliation((int)($user['id'] ?? 0));

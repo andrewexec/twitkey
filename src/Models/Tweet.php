@@ -246,7 +246,7 @@ final class Tweet
         $stmt = Database::instance()->pdo()->prepare(
             "SELECT t.*,
                     u.username, u.display_name, u.email, u.bio, u.location, u.website, u.avatar, u.background,
-                    u.role, u.verified_type, u.is_admin, u.is_suspended, u.follower_count, u.following_count, u.tweet_count,
+                    u.role, u.verified_type, u.is_verified, u.is_admin, u.is_system, u.is_suspended, u.follower_count, u.following_count, u.tweet_count,
                     u.created_at AS user_created_at,
                     (SELECT cn.body FROM community_notes cn WHERE cn.tweet_id = t.id AND cn.status = 'approved' ORDER BY cn.helpful_votes DESC, cn.id ASC LIMIT 1) AS approved_note_body,
                     (SELECT cn.id FROM community_notes cn WHERE cn.tweet_id = t.id AND cn.status = 'approved' ORDER BY cn.helpful_votes DESC, cn.id ASC LIMIT 1) AS approved_note_id

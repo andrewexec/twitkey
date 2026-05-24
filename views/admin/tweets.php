@@ -23,6 +23,8 @@
                     <a href="/tweet/<?= (int)$tweet['id'] ?>">View</a>
                     <button name="action" value="delete">Delete</button>
                     <button name="action" value="remove_note">Remove Community Note</button>
+                    <textarea name="body" maxlength="500" placeholder="Community Note text"></textarea>
+                    <button name="action" value="add_note">Add Community Note</button>
                 </form>
             </td>
         </tr>

@@ -45,6 +45,8 @@ final class Database
                 file_put_contents($installed, date(DATE_ATOM));
             }
         }
+        $this->migrateSchema();
+        $this->ensureCommunityNotesBot();
     }
 
     /**
@@ -266,6 +268,72 @@ final class Database
         $sql = str_replace('target_type TEXT', 'target_type VARCHAR(40)', $sql);
         $sql = str_replace('action     TEXT NOT NULL', 'action     VARCHAR(120) NOT NULL', $sql);
         return $sql;
+    }
+
+    /**
+     * Apply lightweight additive migrations for existing installations.
+     */
+    private function migrateSchema(): void
+    {
+        if (!$this->columnExists('users', 'is_verified')) {
+            $this->pdo->exec('ALTER TABLE users ADD COLUMN is_verified INTEGER DEFAULT 0');
+            $this->pdo->exec("UPDATE users SET is_verified = 1 WHERE verified_type IN ('business', 'government')");
+        }
+        if (!$this->columnExists('users', 'is_system')) {
+            $this->pdo->exec('ALTER TABLE users ADD COLUMN is_system INTEGER DEFAULT 0');
+        }
+    }
+
+    /**
+     * Return true if a table column exists.
+     */
+    private function columnExists(string $table, string $column): bool
+    {
+        if ($this->isMysql()) {
+            $row = $this->one(
+                'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table AND COLUMN_NAME = :column',
+                ['table' => $table, 'column' => $column]
+            );
+            return $row !== null;
+        }
+
+        foreach ($this->pdo->query('PRAGMA table_info(' . $table . ')')->fetchAll() as $row) {
+            if (($row['name'] ?? '') === $column) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Ensure the non-login CommunityNotes system account exists.
+     */
+    private function ensureCommunityNotesBot(): void
+    {
+        $existing = $this->one('SELECT id FROM users WHERE username = :username', ['username' => 'CommunityNotes']);
+        if ($existing) {
+            $this->execute(
+                'UPDATE users SET display_name = :display_name, is_system = 1, is_suspended = 0, is_verified = 1, bio = :bio WHERE id = :id',
+                [
+                    'display_name' => 'Community Notes',
+                    'bio' => 'System account used for administrator-created Community Notes.',
+                    'id' => (int)$existing['id'],
+                ]
+            );
+            return;
+        }
+
+        $this->execute(
+            'INSERT INTO users (username, display_name, email, password, bio, is_verified, is_system)
+             VALUES (:username, :display_name, :email, :password, :bio, 1, 1)',
+            [
+                'username' => 'CommunityNotes',
+                'display_name' => 'Community Notes',
+                'email' => 'communitynotes@twitkey.local',
+                'password' => password_hash(bin2hex(random_bytes(32)), PASSWORD_BCRYPT),
+                'bio' => 'System account used for administrator-created Community Notes.',
+            ]
+        );
     }
 
     /**

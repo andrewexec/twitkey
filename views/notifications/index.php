@@ -20,7 +20,7 @@
     <div class="empty-state">No notifications yet.</div>
 <?php else: ?>
     <?php foreach ($notifications as $n): ?>
-        <?php $actor = ['id' => $n['actor_id'], 'username' => $n['actor_username'], 'display_name' => $n['actor_display_name'], 'avatar' => $n['actor_avatar'], 'is_admin' => $n['actor_is_admin'], 'verified_type' => $n['actor_verified_type']]; ?>
+        <?php $actor = ['id' => $n['actor_id'], 'username' => $n['actor_username'], 'display_name' => $n['actor_display_name'], 'avatar' => $n['actor_avatar'], 'is_admin' => $n['actor_is_admin'], 'is_system' => $n['actor_is_system'], 'is_verified' => $n['actor_is_verified'], 'verified_type' => $n['actor_verified_type']]; ?>
         <div class="notification-row<?= (int)$n['is_read'] === 0 ? ' unread' : '' ?>">
             <img src="<?= Helpers::avatarUrl($actor) ?>" class="small-avatar" alt="">
             <div>

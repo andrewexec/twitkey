@@ -5,6 +5,7 @@ use Twitkey\Models\Notification;
 
 $appName = Helpers::env('APP_NAME', 'Twitkey');
 $unread = $currentUser ? Notification::unreadCount((int)$currentUser['id']) : 0;
+$notificationsLabel = $unread > 0 ? '(' . ($unread > 99 ? '99+' : (string)$unread) . ') Notifications' : 'Notifications';
 ?>
 <!doctype html>
 <html lang="en">
@@ -27,8 +28,12 @@ $unread = $currentUser ? Notification::unreadCount((int)$currentUser['id']) : 0;
                 <a href="/">Home</a> |
                 <a href="/<?= Helpers::h($currentUser['username']) ?>">Profile</a> |
                 <a href="/replies">@Replies</a> |
+                <a href="/notifications"><?= Helpers::h($notificationsLabel) ?></a> |
                 <a href="/direct_messages">Direct Messages</a> |
                 <a href="/settings">Settings</a> |
+                <?php if ((int)$currentUser['is_admin'] === 1): ?>
+                    <a href="/admin">Admin</a> |
+                <?php endif; ?>
                 <a href="/public">Help</a> |
                 <a href="/logout">Sign out</a>
             <?php else: ?>
@@ -134,9 +139,6 @@ $unread = $currentUser ? Notification::unreadCount((int)$currentUser['id']) : 0;
                 <a href="/public">Public Timeline</a> ·
                 <a href="/search">Search</a> ·
                 <a href="/notes/pending">Community Notes</a>
-                <?php if ($currentUser && (int)$currentUser['is_admin'] === 1): ?>
-                    · <a href="/admin">Admin</a>
-                <?php endif; ?>
             </section>
         </aside>
     <?php endif; ?>

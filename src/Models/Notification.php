@@ -30,7 +30,7 @@ final class Notification
     {
         $stmt = Database::instance()->pdo()->prepare(
             'SELECT n.*, a.username AS actor_username, a.display_name AS actor_display_name, a.avatar AS actor_avatar,
-                    a.is_admin AS actor_is_admin, a.verified_type AS actor_verified_type, t.body AS tweet_body
+                    a.is_admin AS actor_is_admin, a.is_system AS actor_is_system, a.is_verified AS actor_is_verified, a.verified_type AS actor_verified_type, t.body AS tweet_body
              FROM notifications n
              JOIN users a ON a.id = n.actor_id
              LEFT JOIN tweets t ON t.id = n.tweet_id

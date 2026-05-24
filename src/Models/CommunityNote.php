@@ -23,6 +23,32 @@ final class CommunityNote
     }
 
     /**
+     * Add an immediately approved administrator-created note.
+     */
+    public static function addApproved(int $tweetId, int $authorId, string $body, int $adminId): void
+    {
+        $body = trim($body);
+        if ($body === '' || strlen($body) > 500) {
+            throw new \InvalidArgumentException('Community notes must be between 1 and 500 characters.');
+        }
+        if (!Tweet::findWithUser($tweetId, true)) {
+            throw new \InvalidArgumentException('Tweet not found.');
+        }
+        Database::instance()->execute(
+            'INSERT INTO community_notes (tweet_id, author_id, body, status, reviewed_by, reviewed_at)
+             VALUES (:tweet_id, :author_id, :body, :status, :reviewed_by, :reviewed_at)',
+            [
+                'tweet_id' => $tweetId,
+                'author_id' => $authorId,
+                'body' => $body,
+                'status' => 'approved',
+                'reviewed_by' => $adminId,
+                'reviewed_at' => date('Y-m-d H:i:s'),
+            ]
+        );
+    }
+
+    /**
      * Return approved note for a tweet.
      *
      * @return array<string, mixed>|null

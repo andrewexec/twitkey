@@ -56,6 +56,7 @@ final class AdminController
             match ($action) {
                 'grant_admin' => User::setAdmin($userId, true),
                 'revoke_admin' => User::setAdmin($userId, false),
+                'verify_normal' => User::setNormalVerified($userId, true),
                 'verify_business' => User::setVerification($userId, 'business'),
                 'verify_government' => User::setVerification($userId, 'government'),
                 'remove_verification' => User::setVerification($userId, null),
@@ -95,6 +96,9 @@ final class AdminController
                 Tweet::delete($tweetId, (int)$admin['id'], true);
             } elseif ($action === 'remove_note') {
                 CommunityNote::rejectForTweet($tweetId, (int)$admin['id']);
+            } elseif ($action === 'add_note') {
+                $bot = User::communityNotesBot();
+                CommunityNote::addApproved($tweetId, (int)$bot['id'], (string)($_POST['body'] ?? ''), (int)$admin['id']);
             } else {
                 throw new \InvalidArgumentException('Unknown tweet action.');
             }

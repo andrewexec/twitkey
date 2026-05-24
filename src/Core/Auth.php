@@ -45,7 +45,7 @@ final class Auth
     public static function attempt(string $login, string $password): bool
     {
         $user = User::findByLogin($login);
-        if (!$user || !password_verify($password, (string)$user['password'])) {
+        if (!$user || (int)($user['is_system'] ?? 0) === 1 || !password_verify($password, (string)$user['password'])) {
             return false;
         }
         session_regenerate_id(true);

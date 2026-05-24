@@ -10,6 +10,8 @@ $author = [
     'display_name' => $tweet['display_name'] ?? $tweet['username'] ?? '',
     'avatar' => $tweet['avatar'] ?? null,
     'is_admin' => $tweet['is_admin'] ?? 0,
+    'is_system' => $tweet['is_system'] ?? 0,
+    'is_verified' => $tweet['is_verified'] ?? 0,
     'verified_type' => $tweet['verified_type'] ?? null,
 ];
 $deleted = (int)($tweet['is_deleted'] ?? 0) === 1;

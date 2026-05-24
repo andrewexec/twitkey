@@ -13,16 +13,29 @@ use Twitkey\Models\User;
 final class HomeController
 {
     /**
-     * Show the signed-in timeline, or public timeline for guests.
+     * Show the signed-in timeline, or a guest landing page.
      */
     public function timeline(): void
     {
         $page = Helpers::page();
         $user = Auth::user();
-        $tweets = $user ? Tweet::feedForUser((int)$user['id'], $page, isset($_GET['last_id']) ? (int)$_GET['last_id'] : null) : Tweet::publicTimeline($page);
+        if (!$user) {
+            $db = Database::instance();
+            Helpers::render('home/landing', [
+                'title' => 'Welcome',
+                'latestTweets' => Tweet::publicTimeline(1),
+                'stats' => [
+                    'users' => (int)($db->one('SELECT COUNT(*) AS count FROM users WHERE is_system = 0')['count'] ?? 0),
+                    'tweets' => (int)($db->one('SELECT COUNT(*) AS count FROM tweets WHERE is_deleted = 0')['count'] ?? 0),
+                ],
+            ]);
+            return;
+        }
+
+        $tweets = Tweet::feedForUser((int)$user['id'], $page, isset($_GET['last_id']) ? (int)$_GET['last_id'] : null);
         Helpers::render('home/timeline', [
-            'title' => $user ? 'Home' : 'Public Timeline',
-            'heading' => $user ? 'Home' : 'Public Timeline',
+            'title' => 'Home',
+            'heading' => 'Home',
             'tweets' => $tweets,
             'page' => $page,
             'basePath' => '/',
@@ -91,7 +104,7 @@ final class HomeController
         if ($selected) {
             $messages = $db->all(
                 'SELECT dm.*, s.username AS sender_username, s.display_name AS sender_display_name, s.avatar AS sender_avatar,
-                        s.is_admin AS sender_is_admin, s.verified_type AS sender_verified_type
+                        s.is_admin AS sender_is_admin, s.is_system AS sender_is_system, s.is_verified AS sender_is_verified, s.verified_type AS sender_verified_type
                  FROM direct_messages dm
                  JOIN users s ON s.id = dm.sender_id
                  WHERE (dm.sender_id = :me AND dm.recipient_id = :them)

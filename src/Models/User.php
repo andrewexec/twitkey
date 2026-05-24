@@ -200,9 +200,23 @@ final class User
      */
     public static function setVerification(int $id, ?string $type): void
     {
+        if ($type !== null && !in_array($type, ['business', 'government'], true)) {
+            throw new \InvalidArgumentException('Invalid verification type.');
+        }
         Database::instance()->execute(
-            'UPDATE users SET verified_type = :type, updated_at = :updated_at WHERE id = :id',
-            ['type' => $type, 'updated_at' => date('Y-m-d H:i:s'), 'id' => $id]
+            'UPDATE users SET verified_type = :type, is_verified = :is_verified, updated_at = :updated_at WHERE id = :id',
+            ['type' => $type, 'is_verified' => $type === null ? 0 : 1, 'updated_at' => date('Y-m-d H:i:s'), 'id' => $id]
+        );
+    }
+
+    /**
+     * Set or clear the normal verified badge.
+     */
+    public static function setNormalVerified(int $id, bool $verified): void
+    {
+        Database::instance()->execute(
+            'UPDATE users SET verified_type = NULL, is_verified = :is_verified, updated_at = :updated_at WHERE id = :id',
+            ['is_verified' => $verified ? 1 : 0, 'updated_at' => date('Y-m-d H:i:s'), 'id' => $id]
         );
     }
 
@@ -222,7 +236,25 @@ final class User
      */
     public static function delete(int $id): void
     {
+        $user = self::find($id);
+        if ($user && (int)($user['is_system'] ?? 0) === 1) {
+            throw new \RuntimeException('System accounts cannot be deleted.');
+        }
         Database::instance()->execute('DELETE FROM users WHERE id = :id', ['id' => $id]);
+    }
+
+    /**
+     * Return the Community Notes system account.
+     *
+     * @return array<string, mixed>
+     */
+    public static function communityNotesBot(): array
+    {
+        $bot = self::findByUsername('CommunityNotes');
+        if (!$bot) {
+            throw new \RuntimeException('CommunityNotes system account is missing.');
+        }
+        return $bot;
     }
 
     /**

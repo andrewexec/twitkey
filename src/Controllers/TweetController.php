@@ -55,7 +55,7 @@ final class TweetController
             'tweet' => $tweet,
             'replies' => Tweet::repliesTo((int)$tweet['id'], true),
             'note' => $note,
-            'canNote' => Helpers::eligibleForNotes($currentUser),
+            'canNote' => Auth::isAdmin() || Helpers::eligibleForNotes($currentUser),
         ]);
     }
 
@@ -160,6 +160,16 @@ final class TweetController
     {
         Helpers::verifyCsrf();
         $user = Auth::requireActiveUser();
+        if (Auth::isAdmin()) {
+            try {
+                $bot = \Twitkey\Models\User::communityNotesBot();
+                CommunityNote::addApproved((int)$id, (int)$bot['id'], (string)($_POST['body'] ?? ''), (int)$user['id']);
+                Session::flash('success', 'Community Note published as @CommunityNotes.');
+                Helpers::redirect('/tweet/' . (int)$id);
+            } catch (\Throwable $e) {
+                $this->fail($e->getMessage(), '/tweet/' . (int)$id);
+            }
+        }
         if (!Helpers::eligibleForNotes($user)) {
             $this->fail('You are not eligible to add Community Notes yet.', '/tweet/' . (int)$id);
         }
