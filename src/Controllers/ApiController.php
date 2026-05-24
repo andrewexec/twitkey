@@ -41,7 +41,7 @@ final class ApiController
     }
 
     /**
-     * Search GIFs through a configurable no-key provider endpoint.
+     * Search GIFs through Klipy or a compatible configurable endpoint.
      */
     public function gifs(): void
     {
@@ -50,8 +50,13 @@ final class ApiController
             Helpers::json(['ok' => true, 'items' => []]);
         }
 
-        $endpoint = Helpers::env('GIF_API_SEARCH_URL', 'https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrlimit=12&gsrsearch={query}%20filetype:bitmap%20gif&prop=imageinfo&iiprop=url%7Cmime&format=json&origin=*');
-        $json = $this->fetchJson(str_replace('{query}', rawurlencode($query), $endpoint));
+        $endpoint = Helpers::env('GIF_API_SEARCH_URL', 'https://api.klipy.com/v2/search?q={query}&key={key}&limit=12&media_filter=gif,tinygif,mediumgif,nanogif,preview&contentfilter=low');
+        $endpoint = str_replace(
+            ['{query}', '{key}'],
+            [rawurlencode($query), rawurlencode(Helpers::env('KLIPY_API_KEY', ''))],
+            $endpoint
+        );
+        $json = $this->fetchJson($endpoint);
         $items = [];
 
         foreach ($this->extractGifItems($json) as $item) {
@@ -180,7 +185,26 @@ final class ApiController
             return $items;
         }
         if (isset($json['results']) && is_array($json['results'])) {
-            return $json['results'];
+            $items = [];
+            foreach ($json['results'] as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                $media = $row['media_formats'] ?? [];
+                if (is_array($media)) {
+                    foreach (['gif', 'mediumgif', 'tinygif', 'nanogif', 'preview'] as $format) {
+                        if (isset($media[$format]['url']) && is_string($media[$format]['url'])) {
+                            $items[] = [
+                                'url' => $media[$format]['url'],
+                                'title' => $row['content_description'] ?? $row['title'] ?? 'GIF',
+                            ];
+                            continue 2;
+                        }
+                    }
+                }
+                $items[] = $row;
+            }
+            return $items;
         }
         if (isset($json['query']['pages']) && is_array($json['query']['pages'])) {
             $items = [];

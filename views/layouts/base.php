@@ -71,6 +71,7 @@ $notificationsLabel = $unread > 0 ? '(' . ($unread > 99 ? '99+' : (string)$unrea
                         <button type="button" data-gif-search>Search</button>
                     </div>
                     <div class="gif-results" data-gif-results></div>
+                    <div class="tool-hint">GIF search powered by KLIPY.</div>
                     <input type="url" placeholder="or paste HTTPS GIF URL" data-gif-paste>
                 </div>
                 <div class="compose-panel" data-compose-panel="poll-panel">
