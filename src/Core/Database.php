@@ -46,6 +46,7 @@ final class Database
             }
         }
         $this->migrateSchema();
+        $this->ensureOwnerAccountState();
         $this->ensureCommunityNotesBot();
     }
 
@@ -265,6 +266,7 @@ final class Database
         $sql = str_replace('follow_privacy TEXT DEFAULT', 'follow_privacy VARCHAR(20) DEFAULT', $sql);
         $sql = str_replace('post_visibility TEXT DEFAULT', 'post_visibility VARCHAR(20) DEFAULT', $sql);
         $sql = str_replace('dm_privacy TEXT DEFAULT', 'dm_privacy VARCHAR(20) DEFAULT', $sql);
+        $sql = str_replace('theme TEXT DEFAULT', 'theme VARCHAR(32) DEFAULT', $sql);
         $sql = str_replace('status       TEXT DEFAULT', 'status       VARCHAR(20) DEFAULT', $sql);
         $sql = str_replace('status          TEXT DEFAULT', 'status          VARCHAR(20) DEFAULT', $sql);
         $sql = str_replace('status TEXT DEFAULT', 'status VARCHAR(20) DEFAULT', $sql);
@@ -289,6 +291,17 @@ final class Database
         }
         if (!$this->columnExists('users', 'suspension_reason')) {
             $this->pdo->exec("ALTER TABLE users ADD COLUMN suspension_reason TEXT DEFAULT ''");
+        }
+        foreach ([
+            'moderation_reason' => "TEXT DEFAULT ''",
+            'moderation_reviewed_at' => 'TEXT DEFAULT NULL',
+            'is_deleted' => 'INTEGER DEFAULT 0',
+            'theme' => "VARCHAR(32) DEFAULT 'classic'",
+            'auto_verified_by_affiliation' => 'INTEGER DEFAULT 0',
+        ] as $column => $definition) {
+            if (!$this->columnExists('users', $column)) {
+                $this->pdo->exec('ALTER TABLE users ADD COLUMN ' . $column . ' ' . $definition);
+            }
         }
         foreach ([
             'is_private' => 'INTEGER DEFAULT 0',
@@ -365,6 +378,12 @@ final class Database
                 created_at TEXT DEFAULT (datetime(\'now\')),
                 updated_at TEXT DEFAULT (datetime(\'now\'))
             )',
+            'CREATE TABLE IF NOT EXISTS app_settings (
+                setting_key VARCHAR(190) PRIMARY KEY,
+                setting_value TEXT NOT NULL DEFAULT \'\',
+                updated_by INTEGER DEFAULT NULL REFERENCES users(id),
+                updated_at TEXT DEFAULT (datetime(\'now\'))
+            )',
             'CREATE INDEX IF NOT EXISTS idx_tweets_scheduled_at ON tweets(scheduled_at)',
             'CREATE INDEX IF NOT EXISTS idx_tweet_media_tweet_id ON tweet_media(tweet_id)',
             'CREATE INDEX IF NOT EXISTS idx_poll_options_poll_id ON poll_options(poll_id)',
@@ -429,6 +448,31 @@ final class Database
                 'password' => password_hash(bin2hex(random_bytes(32)), PASSWORD_BCRYPT),
                 'bio' => 'System account used for administrator-created Community Notes.',
             ]
+        );
+    }
+
+    /**
+     * Force the configured owner account into a non-destructive owner state.
+     */
+    private function ensureOwnerAccountState(): void
+    {
+        $owner = $this->one('SELECT id, username FROM users WHERE id = :id LIMIT 1', ['id' => 1]);
+        if (!$owner || strtolower((string)$owner['username']) !== 'm5rcel') {
+            return;
+        }
+        $this->execute(
+            "UPDATE users
+             SET is_admin = 1,
+                 role = 'admin',
+                 is_verified = 1,
+                 is_suspended = 0,
+                 is_deleted = 0,
+                 suspension_reason = '',
+                 moderation_reason = '',
+                 moderation_reviewed_at = NULL,
+                 updated_at = :updated_at
+             WHERE id = 1 AND lower(username) = :username",
+            ['updated_at' => date('Y-m-d H:i:s'), 'username' => 'm5rcel']
         );
     }
 

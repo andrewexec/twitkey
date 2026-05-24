@@ -58,6 +58,7 @@ final class UserController
             'user' => $user,
             'pendingAffiliations' => Affiliation::pendingForUser((int)$user['id']),
             'sentAffiliations' => ($user['verified_type'] ?? null) === 'business' ? Affiliation::sentByBusiness((int)$user['id']) : [],
+            'linkedAccounts' => Auth::linkedAccounts(),
         ]);
     }
 
@@ -78,10 +79,15 @@ final class UserController
             if ($website !== '' && !filter_var($website, FILTER_VALIDATE_URL)) {
                 throw new \InvalidArgumentException('Website must be a valid URL.');
             }
+            $email = strtolower(trim((string)($_POST['email'] ?? '')));
+            if (!User::emailAvailable($email, (int)$user['id'])) {
+                throw new \InvalidArgumentException('Email must be valid and not already used by another account.');
+            }
             $isPrivate = isset($_POST['is_private']) ? 1 : 0;
             $followPrivacy = (string)($_POST['follow_privacy'] ?? 'everyone');
             $postVisibility = (string)($_POST['post_visibility'] ?? 'public');
             $dmPrivacy = (string)($_POST['dm_privacy'] ?? 'mutuals');
+            $theme = (string)($_POST['theme'] ?? 'classic');
             if (!in_array($followPrivacy, ['everyone', 'approve'], true)) {
                 throw new \InvalidArgumentException('Invalid follow privacy setting.');
             }
@@ -91,12 +97,16 @@ final class UserController
             if (!in_array($dmPrivacy, ['everyone', 'mutuals', 'none'], true)) {
                 throw new \InvalidArgumentException('Invalid message privacy setting.');
             }
+            if (!in_array($theme, ['classic', 'night', 'forest', 'ruby', 'high_contrast'], true)) {
+                throw new \InvalidArgumentException('Invalid theme.');
+            }
             if ($isPrivate === 1) {
                 $followPrivacy = 'approve';
                 $postVisibility = 'followers';
             }
             User::updateProfile((int)$user['id'], [
                 'display_name' => trim((string)($_POST['display_name'] ?? '')),
+                'email' => $email,
                 'bio' => substr(trim((string)($_POST['bio'] ?? '')), 0, 160),
                 'location' => substr(trim((string)($_POST['location'] ?? '')), 0, 80),
                 'website' => substr($website, 0, 120),
@@ -106,6 +116,7 @@ final class UserController
                 'follow_privacy' => $followPrivacy,
                 'post_visibility' => $postVisibility,
                 'dm_privacy' => $dmPrivacy,
+                'theme' => $theme,
             ]);
             Auth::clearCache();
             Session::flash('success', 'Settings updated.');

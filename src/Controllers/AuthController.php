@@ -34,6 +34,51 @@ final class AuthController
     }
 
     /**
+     * Add another account to the current browser session.
+     */
+    public function addAccount(): void
+    {
+        Helpers::verifyCsrf();
+        Auth::requireLogin();
+        $login = trim((string)($_POST['login'] ?? ''));
+        $password = (string)($_POST['password'] ?? '');
+        $user = Auth::validateCredentials($login, $password);
+        if (!$user) {
+            Session::flash('error', 'Could not add that account. Check the username/email and password.');
+            Helpers::redirect('/settings');
+        }
+        Auth::rememberAccount($user);
+        Session::flash('success', '@' . $user['username'] . ' was added to account switching.');
+        Helpers::redirect('/settings');
+    }
+
+    /**
+     * Switch to a remembered account.
+     */
+    public function switchAccount(string $id): void
+    {
+        Helpers::verifyCsrf();
+        Auth::requireLogin();
+        if (!Auth::switchTo((int)$id)) {
+            Session::flash('error', 'That account is not available for switching.');
+            Helpers::redirect('/settings');
+        }
+        Helpers::redirect('/');
+    }
+
+    /**
+     * Remove an account from the current browser session.
+     */
+    public function removeAccount(string $id): void
+    {
+        Helpers::verifyCsrf();
+        Auth::requireLogin();
+        Auth::forgetAccount((int)$id);
+        Session::flash('success', 'Account removed from this browser session.');
+        Helpers::redirect('/settings');
+    }
+
+    /**
      * Show the registration form.
      */
     public function registerForm(): void

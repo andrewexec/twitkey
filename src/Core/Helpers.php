@@ -302,15 +302,15 @@ final class Helpers
     public static function renderBadges(array $user): string
     {
         $html = '';
+        $affiliation = self::acceptedAffiliation((int)($user['id'] ?? 0));
         if (($user['verified_type'] ?? null) === 'business') {
             $html .= '<span class="tooltip-wrap" data-tooltip="Verified Business"><img src="/img/verified_badge.webp" class="image-badge verified-image-badge" alt="Verified Business"></span>';
         } elseif (($user['verified_type'] ?? null) === 'government') {
             $html .= '<span class="tooltip-wrap" data-tooltip="Verified Government"><img src="/img/verified_badge.webp" class="image-badge verified-image-badge" alt="Verified Government"></span>';
-        } elseif ((int)($user['is_verified'] ?? 0) === 1) {
+        } elseif ((int)($user['is_verified'] ?? 0) === 1 || $affiliation !== null) {
             $html .= '<span class="tooltip-wrap" data-tooltip="Verified"><img src="/img/verified_badge.webp" class="image-badge verified-image-badge" alt="Verified"></span>';
         }
 
-        $affiliation = self::acceptedAffiliation((int)($user['id'] ?? 0));
         if ($affiliation) {
             $avatarSrc = self::avatarUrl($affiliation);
             $username = self::h($affiliation['username']);
@@ -442,6 +442,46 @@ final class Helpers
     }
 
     /**
+     * Return a persisted app setting.
+     */
+    public static function appSetting(string $key, string $default = ''): string
+    {
+        $row = Database::instance()->one('SELECT setting_value FROM app_settings WHERE setting_key = :key', ['key' => $key]);
+        return $row ? (string)$row['setting_value'] : $default;
+    }
+
+    /**
+     * Persist an app setting.
+     */
+    public static function setAppSetting(string $key, string $value, ?int $updatedBy = null): void
+    {
+        $db = Database::instance();
+        if ($db->isMysql()) {
+            $db->execute(
+                'INSERT INTO app_settings (setting_key, setting_value, updated_by, updated_at)
+                 VALUES (:key, :value, :updated_by, :updated_at)
+                 ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_by = VALUES(updated_by), updated_at = VALUES(updated_at)',
+                ['key' => $key, 'value' => $value, 'updated_by' => $updatedBy, 'updated_at' => date('Y-m-d H:i:s')]
+            );
+            return;
+        }
+        $db->execute(
+            'INSERT INTO app_settings (setting_key, setting_value, updated_by, updated_at)
+             VALUES (:key, :value, :updated_by, :updated_at)
+             ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value, updated_by = excluded.updated_by, updated_at = excluded.updated_at',
+            ['key' => $key, 'value' => $value, 'updated_by' => $updatedBy, 'updated_at' => date('Y-m-d H:i:s')]
+        );
+    }
+
+    /**
+     * True when site maintenance mode is enabled.
+     */
+    public static function maintenanceModeEnabled(): bool
+    {
+        return self::appSetting('maintenance_mode', '0') === '1';
+    }
+
+    /**
      * Return cached trending hashtags.
      *
      * @return array<int, array{tag:string,count:int}>
@@ -465,7 +505,7 @@ final class Helpers
              JOIN tweet_hashtags th ON th.hashtag_id = h.id
              JOIN tweets t ON t.id = th.tweet_id
              JOIN users u ON u.id = t.user_id
-             WHERE t.created_at >= {$cutoffSql} AND {$publishedSql} AND t.is_deleted = 0 AND u.is_suspended = 0 AND u.is_private = 0 AND u.post_visibility = 'public'
+             WHERE t.created_at >= {$cutoffSql} AND {$publishedSql} AND t.is_deleted = 0 AND u.is_suspended = 0 AND u.is_deleted = 0 AND u.is_private = 0 AND u.post_visibility = 'public'
              GROUP BY h.id, h.tag
              ORDER BY count DESC, h.tag ASC
              LIMIT 10"

@@ -1,6 +1,8 @@
 <?php
 use Twitkey\Core\Helpers;
+use Twitkey\Models\User;
 $bannerUrl = Helpers::bannerUrl($profile);
+$isOwner = User::isOwnerRow($profile);
 ?>
 <section class="profile-header<?= (int)$profile['is_admin'] === 1 ? ' admin-profile' : '' ?><?= $bannerUrl ? ' has-banner' : '' ?>"<?= $bannerUrl ? ' style="--profile-banner: url(' . Helpers::h($bannerUrl) . ');"' : '' ?>>
     <?php if ($bannerUrl): ?>
@@ -21,7 +23,9 @@ $bannerUrl = Helpers::bannerUrl($profile);
     <div class="profile-info">
         <h1><?= Helpers::h($profile['display_name']) ?> <?= Helpers::renderBadges($profile) ?><?= (int)($profile['is_private'] ?? 0) === 1 ? ' <span class="lock-badge tooltip-wrap" data-tooltip="Private account">🔒</span>' : '' ?></h1>
         <div class="profile-username">@<?= Helpers::h($profile['username']) ?><?= (int)($profile['is_private'] ?? 0) === 1 ? ' <span class="lock-badge tooltip-wrap" data-tooltip="Private account">🔒</span>' : '' ?> <?= Helpers::followsYouBadge($profile) ?></div>
-        <?php if ((int)$profile['is_admin'] === 1): ?>
+        <?php if ($isOwner): ?>
+            <div class="staff-label owner-label">This user is the owner of Twitkey.</div>
+        <?php elseif ((int)$profile['is_admin'] === 1): ?>
             <div class="staff-label">This user is a Administrator of <?= Helpers::h(Helpers::env('APP_NAME', 'Twitkey')) ?></div>
         <?php endif; ?>
         <p><?= Helpers::h($profile['bio']) ?></p>

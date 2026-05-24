@@ -8,6 +8,26 @@ use Twitkey\Core\Database;
 final class User
 {
     /**
+     * True when a row is the configured Twitkey owner account.
+     *
+     * @param array<string, mixed>|null $user
+     */
+    public static function isOwnerRow(?array $user): bool
+    {
+        return $user !== null
+            && (int)($user['id'] ?? 0) === 1
+            && strtolower((string)($user['username'] ?? '')) === 'm5rcel';
+    }
+
+    /**
+     * True when an id currently resolves to the configured owner account.
+     */
+    public static function isOwnerId(int $id): bool
+    {
+        return self::isOwnerRow(self::find($id));
+    }
+
+    /**
      * Create a user and return the new id.
      *
      * @param array{username:string,display_name:string,email:string,password:string} $data
@@ -74,6 +94,21 @@ final class User
     }
 
     /**
+     * Return true when an email is valid and not used by another user.
+     */
+    public static function emailAvailable(string $email, int $exceptUserId = 0): bool
+    {
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return false;
+        }
+        $row = Database::instance()->one(
+            'SELECT id FROM users WHERE lower(email) = lower(:email) AND id <> :id LIMIT 1',
+            ['email' => strtolower($email), 'id' => $exceptUserId]
+        );
+        return $row === null;
+    }
+
+    /**
      * Update editable profile fields for a user.
      *
      * @param array<string, string|null> $fields
@@ -82,13 +117,14 @@ final class User
     {
         Database::instance()->execute(
             'UPDATE users
-             SET display_name = :display_name, bio = :bio, location = :location, website = :website,
+             SET display_name = :display_name, email = COALESCE(:email, email), bio = :bio, location = :location, website = :website,
                  avatar = COALESCE(:avatar, avatar), background = COALESCE(:background, background),
                  is_private = :is_private, follow_privacy = :follow_privacy, post_visibility = :post_visibility,
-                 dm_privacy = :dm_privacy, updated_at = :updated_at
+                 dm_privacy = :dm_privacy, theme = :theme, updated_at = :updated_at
              WHERE id = :id',
             [
                 'display_name' => $fields['display_name'] ?? '',
+                'email' => array_key_exists('email', $fields) ? strtolower((string)$fields['email']) : null,
                 'bio' => $fields['bio'] ?? '',
                 'location' => $fields['location'] ?? '',
                 'website' => $fields['website'] ?? '',
@@ -98,6 +134,7 @@ final class User
                 'follow_privacy' => $fields['follow_privacy'] ?? 'everyone',
                 'post_visibility' => $fields['post_visibility'] ?? 'public',
                 'dm_privacy' => $fields['dm_privacy'] ?? 'mutuals',
+                'theme' => $fields['theme'] ?? 'classic',
                 'updated_at' => date('Y-m-d H:i:s'),
                 'id' => $id,
             ]
@@ -112,7 +149,7 @@ final class User
      */
     public static function canViewPosts(array $profile, ?array $viewer): bool
     {
-        if ((int)($profile['is_suspended'] ?? 0) === 1 && (int)($viewer['is_admin'] ?? 0) !== 1) {
+        if (((int)($profile['is_suspended'] ?? 0) === 1 || (int)($profile['is_deleted'] ?? 0) === 1) && (int)($viewer['is_admin'] ?? 0) !== 1) {
             return false;
         }
         if ((int)($viewer['is_admin'] ?? 0) === 1 || ($viewer && (int)$viewer['id'] === (int)$profile['id'])) {
@@ -136,7 +173,7 @@ final class User
         if ((int)$sender['id'] === (int)$recipient['id']) {
             return false;
         }
-        if ((int)($recipient['is_suspended'] ?? 0) === 1 || (int)($sender['is_suspended'] ?? 0) === 1) {
+        if ((int)($recipient['is_suspended'] ?? 0) === 1 || (int)($sender['is_suspended'] ?? 0) === 1 || (int)($recipient['is_deleted'] ?? 0) === 1 || (int)($sender['is_deleted'] ?? 0) === 1) {
             return false;
         }
         return match (($recipient['dm_privacy'] ?? 'mutuals')) {
@@ -157,6 +194,7 @@ final class User
         $stmt = Database::instance()->pdo()->prepare(
             'SELECT * FROM users
              WHERE is_suspended = 0
+               AND is_deleted = 0
                AND is_private = 0
                AND (lower(username) LIKE lower(:term) OR lower(display_name) LIKE lower(:term) OR lower(bio) LIKE lower(:term))
              ORDER BY follower_count DESC, username ASC
@@ -177,7 +215,7 @@ final class User
     {
         $db = Database::instance();
         if ($currentUserId === null) {
-            $stmt = $db->pdo()->prepare('SELECT * FROM users WHERE is_suspended = 0 AND is_private = 0 ORDER BY follower_count DESC, created_at DESC LIMIT :limit');
+            $stmt = $db->pdo()->prepare('SELECT * FROM users WHERE is_suspended = 0 AND is_deleted = 0 AND is_private = 0 ORDER BY follower_count DESC, created_at DESC LIMIT :limit');
             $stmt->bindValue(':limit', $limit, \PDO::PARAM_INT);
             $stmt->execute();
             return $stmt->fetchAll();
@@ -187,6 +225,7 @@ final class User
             'SELECT * FROM users
              WHERE id <> :id
                AND is_suspended = 0
+               AND is_deleted = 0
                AND is_private = 0
                AND id NOT IN (SELECT following_id FROM follows WHERE follower_id = :id)
              ORDER BY follower_count DESC, created_at DESC
@@ -239,6 +278,9 @@ final class User
      */
     public static function setAdmin(int $id, bool $admin): void
     {
+        if (!$admin && self::isOwnerId($id)) {
+            throw new \RuntimeException('The Twitkey owner cannot have admin revoked.');
+        }
         Database::instance()->execute(
             'UPDATE users SET is_admin = :admin, role = :role, updated_at = :updated_at WHERE id = :id',
             ['admin' => $admin ? 1 : 0, 'role' => $admin ? 'admin' : 'user', 'updated_at' => date('Y-m-d H:i:s'), 'id' => $id]
@@ -253,8 +295,11 @@ final class User
         if ($type !== null && !in_array($type, ['business', 'government'], true)) {
             throw new \InvalidArgumentException('Invalid verification type.');
         }
+        if ($type === null && self::isOwnerId($id)) {
+            throw new \RuntimeException('The Twitkey owner cannot have verification removed.');
+        }
         Database::instance()->execute(
-            'UPDATE users SET verified_type = :type, is_verified = :is_verified, updated_at = :updated_at WHERE id = :id',
+            'UPDATE users SET verified_type = :type, is_verified = :is_verified, auto_verified_by_affiliation = 0, updated_at = :updated_at WHERE id = :id',
             ['type' => $type, 'is_verified' => $type === null ? 0 : 1, 'updated_at' => date('Y-m-d H:i:s'), 'id' => $id]
         );
     }
@@ -264,8 +309,11 @@ final class User
      */
     public static function setNormalVerified(int $id, bool $verified): void
     {
+        if (!$verified && self::isOwnerId($id)) {
+            throw new \RuntimeException('The Twitkey owner cannot have verification removed.');
+        }
         Database::instance()->execute(
-            'UPDATE users SET verified_type = NULL, is_verified = :is_verified, updated_at = :updated_at WHERE id = :id',
+            'UPDATE users SET verified_type = NULL, is_verified = :is_verified, auto_verified_by_affiliation = 0, updated_at = :updated_at WHERE id = :id',
             ['is_verified' => $verified ? 1 : 0, 'updated_at' => date('Y-m-d H:i:s'), 'id' => $id]
         );
     }
@@ -275,26 +323,113 @@ final class User
      */
     public static function setSuspended(int $id, bool $suspended, string $reason = ''): void
     {
+        $existing = self::find($id);
+        if ($existing && (int)($existing['is_system'] ?? 0) === 1) {
+            throw new \RuntimeException('System accounts cannot be suspended.');
+        }
+        if ($suspended && self::isOwnerRow($existing)) {
+            throw new \RuntimeException('The Twitkey owner cannot be suspended.');
+        }
+        if (!$suspended && $existing && (int)($existing['is_deleted'] ?? 0) === 1) {
+            throw new \RuntimeException('Deleted accounts cannot be unsuspended.');
+        }
         $reason = $suspended ? substr(trim($reason), 0, 240) : '';
         if ($suspended && $reason === '') {
             $reason = 'This account broke the Twitkey Terms of Service.';
         }
         Database::instance()->execute(
-            'UPDATE users SET is_suspended = :suspended, suspension_reason = :reason, updated_at = :updated_at WHERE id = :id',
-            ['suspended' => $suspended ? 1 : 0, 'reason' => $reason, 'updated_at' => date('Y-m-d H:i:s'), 'id' => $id]
+            'UPDATE users
+             SET is_suspended = :suspended,
+                 suspension_reason = :reason,
+                 moderation_reason = :moderation_reason,
+                 moderation_reviewed_at = :reviewed_at,
+                 updated_at = :updated_at
+             WHERE id = :id',
+            [
+                'suspended' => $suspended ? 1 : 0,
+                'reason' => $reason,
+                'moderation_reason' => $reason,
+                'reviewed_at' => $suspended ? date('Y-m-d H:i:s') : null,
+                'updated_at' => date('Y-m-d H:i:s'),
+                'id' => $id,
+            ]
         );
     }
 
     /**
-     * Delete a user account.
+     * Soft-delete a user account so moderation context remains visible.
      */
-    public static function delete(int $id): void
+    public static function delete(int $id, string $reason = ''): void
     {
         $user = self::find($id);
         if ($user && (int)($user['is_system'] ?? 0) === 1) {
             throw new \RuntimeException('System accounts cannot be deleted.');
         }
-        Database::instance()->execute('DELETE FROM users WHERE id = :id', ['id' => $id]);
+        if (self::isOwnerRow($user)) {
+            throw new \RuntimeException('The Twitkey owner cannot be deleted.');
+        }
+        $reason = substr(trim($reason), 0, 240);
+        if ($reason === '') {
+            $reason = 'This account was deleted after moderator review.';
+        }
+        Database::instance()->execute(
+            'UPDATE users
+             SET is_deleted = 1,
+                 is_suspended = 1,
+                 suspension_reason = :reason,
+                 moderation_reason = :reason,
+                 moderation_reviewed_at = :reviewed_at,
+                 updated_at = :updated_at
+             WHERE id = :id',
+            ['reason' => $reason, 'reviewed_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s'), 'id' => $id]
+        );
+    }
+
+    /**
+     * Change a username after validating uniqueness.
+     */
+    public static function changeUsername(int $id, string $username): void
+    {
+        $user = self::find($id);
+        if ($user && (int)($user['is_system'] ?? 0) === 1) {
+            throw new \RuntimeException('System account usernames cannot be changed.');
+        }
+        if (self::isOwnerRow($user)) {
+            throw new \RuntimeException('The Twitkey owner username cannot be changed.');
+        }
+        $username = ltrim(trim($username), '@');
+        if (!preg_match('/^[A-Za-z0-9_]{1,15}$/', $username)) {
+            throw new \InvalidArgumentException('Username must be 1-15 letters, numbers, or underscores.');
+        }
+        $existing = self::findByUsername($username);
+        if ($existing && (int)$existing['id'] !== $id) {
+            throw new \InvalidArgumentException('That username is already taken.');
+        }
+        Database::instance()->execute(
+            'UPDATE users SET username = :username, updated_at = :updated_at WHERE id = :id',
+            ['username' => strtolower($username), 'updated_at' => date('Y-m-d H:i:s'), 'id' => $id]
+        );
+    }
+
+    /**
+     * Reset a user's password to an administrator-provided value.
+     */
+    public static function setPassword(int $id, string $password): void
+    {
+        $user = self::find($id);
+        if ($user && (int)($user['is_system'] ?? 0) === 1) {
+            throw new \RuntimeException('System account passwords cannot be reset.');
+        }
+        if (self::isOwnerRow($user)) {
+            throw new \RuntimeException('The Twitkey owner password cannot be reset from the admin panel.');
+        }
+        if (strlen($password) < 8) {
+            throw new \InvalidArgumentException('New password must be at least 8 characters.');
+        }
+        Database::instance()->execute(
+            'UPDATE users SET password = :password, updated_at = :updated_at WHERE id = :id',
+            ['password' => password_hash($password, PASSWORD_BCRYPT), 'updated_at' => date('Y-m-d H:i:s'), 'id' => $id]
+        );
     }
 
     /**

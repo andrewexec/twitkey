@@ -48,10 +48,37 @@ final class Auth
         if (!$user || (int)($user['is_system'] ?? 0) === 1 || !password_verify($password, (string)$user['password'])) {
             return false;
         }
-        session_regenerate_id(true);
-        $_SESSION['user_id'] = (int)$user['id'];
-        self::$cachedUser = $user;
+        self::loginAs($user, true);
         return true;
+    }
+
+    /**
+     * Return a user row when the supplied credentials are valid for a switchable account.
+     *
+     * @return array<string, mixed>|null
+     */
+    public static function validateCredentials(string $login, string $password): ?array
+    {
+        $user = User::findByLogin($login);
+        if (!$user || (int)($user['is_system'] ?? 0) === 1 || !password_verify($password, (string)$user['password'])) {
+            return null;
+        }
+        return $user;
+    }
+
+    /**
+     * Set the active account and remember it in this browser session.
+     *
+     * @param array<string, mixed> $user
+     */
+    public static function loginAs(array $user, bool $regenerate = false): void
+    {
+        if ($regenerate) {
+            session_regenerate_id(true);
+        }
+        $_SESSION['user_id'] = (int)$user['id'];
+        $_SESSION['account_ids'] = self::normalizedAccountIds([(int)$user['id'], ...self::accountIds()]);
+        self::$cachedUser = $user;
     }
 
     /**
@@ -66,6 +93,71 @@ final class Auth
         }
         session_destroy();
         self::$cachedUser = null;
+    }
+
+    /**
+     * Return switchable account ids remembered in this browser session.
+     *
+     * @return array<int, int>
+     */
+    public static function accountIds(): array
+    {
+        return self::normalizedAccountIds([(int)($_SESSION['user_id'] ?? 0), ...(array)($_SESSION['account_ids'] ?? [])]);
+    }
+
+    /**
+     * Return switchable account rows for the active browser session.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function linkedAccounts(): array
+    {
+        $accounts = [];
+        foreach (self::accountIds() as $id) {
+            $user = User::find($id);
+            if ($user && (int)($user['is_system'] ?? 0) !== 1) {
+                $accounts[] = $user;
+            }
+        }
+        return $accounts;
+    }
+
+    /**
+     * Add an account to the current browser session without switching away.
+     *
+     * @param array<string, mixed> $user
+     */
+    public static function rememberAccount(array $user): void
+    {
+        $_SESSION['account_ids'] = self::normalizedAccountIds([(int)$user['id'], ...self::accountIds()]);
+    }
+
+    /**
+     * Switch the active browser session to a remembered account id.
+     */
+    public static function switchTo(int $id): bool
+    {
+        if (!in_array($id, self::accountIds(), true)) {
+            return false;
+        }
+        $user = User::find($id);
+        if (!$user || (int)($user['is_system'] ?? 0) === 1) {
+            return false;
+        }
+        self::loginAs($user, true);
+        return true;
+    }
+
+    /**
+     * Remove a remembered account from the browser session.
+     */
+    public static function forgetAccount(int $id): void
+    {
+        $_SESSION['account_ids'] = array_values(array_filter(self::accountIds(), static fn (int $accountId): bool => $accountId !== $id));
+        if ((int)($_SESSION['user_id'] ?? 0) === $id) {
+            unset($_SESSION['user_id']);
+            self::$cachedUser = null;
+        }
     }
 
     /**
@@ -90,7 +182,7 @@ final class Auth
     public static function requireActiveUser(): array
     {
         $user = self::requireLogin();
-        if ((int)$user['is_suspended'] === 1) {
+        if ((int)$user['is_suspended'] === 1 || (int)($user['is_deleted'] ?? 0) === 1) {
             $reason = trim((string)($user['suspension_reason'] ?? ''));
             $message = 'This account has been suspended.' . ($reason !== '' ? ' Reason: ' . $reason : '');
             if (Helpers::wantsJson()) {
@@ -133,5 +225,26 @@ final class Auth
     public static function clearCache(): void
     {
         self::$cachedUser = null;
+    }
+
+    /**
+     * Normalize account ids stored in the session.
+     *
+     * @param mixed $ids
+     * @return array<int, int>
+     */
+    private static function normalizedAccountIds(mixed $ids): array
+    {
+        if (!is_array($ids)) {
+            return [];
+        }
+        $out = [];
+        foreach ($ids as $id) {
+            $id = (int)$id;
+            if ($id > 0 && !in_array($id, $out, true)) {
+                $out[] = $id;
+            }
+        }
+        return array_slice($out, 0, 8);
     }
 }
