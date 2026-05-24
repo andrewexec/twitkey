@@ -5,6 +5,7 @@ Twitkey is a self-hosted PHP 8.2 microblogging app styled after Twitter's 2009 w
 ## Quick Start
 
 ```sh
+cp .env.example .env
 docker compose up -d --build
 ```
 
@@ -21,6 +22,8 @@ http://localhost/admin/setup?token=changeme123&username=yourusername
 
 Set `ADMIN_SETUP_TOKEN` before deployment. After the first successful promotion, Twitkey writes `/data/.admin_setup_done` and the setup route returns 404.
 
+Docker Compose reads `.env` in two ways here: it uses `HTTP_PORT` and `HTTPS_PORT` for host port mapping, and `env_file: .env` passes the application settings into the PHP container.
+
 ## Environment Variables
 
 | Variable | Default | Description |
@@ -28,6 +31,8 @@ Set `ADMIN_SETUP_TOKEN` before deployment. After the first successful promotion,
 | `APP_NAME` | `Twitkey` | Application name in the UI. |
 | `APP_URL` | `http://localhost` | Public site URL. |
 | `APP_DEBUG` | `false` | Enables PHP error display when `true`. |
+| `HTTP_PORT` | `80` | Host port mapped to container port 80. |
+| `HTTPS_PORT` | `443` | Host port mapped to container port 443. |
 | `DB_DRIVER` | `sqlite` | `sqlite` or `mysql`. |
 | `DB_PATH` | `/data/twitkey.db` | SQLite database path. |
 | `DB_HOST` | `mysql` | MySQL host. |
