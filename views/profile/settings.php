@@ -67,7 +67,10 @@
     <h2>Sent invites</h2>
     <?php foreach ($sentAffiliations as $aff): ?>
         <div class="user-result">
-            <img src="<?= Helpers::avatarUrl($aff) ?>" class="small-avatar" alt="">
+            <span class="avatar-frame small-avatar-frame">
+                <img src="<?= Helpers::avatarUrl($aff) ?>" class="small-avatar" alt="">
+                <?= Helpers::adminAvatarBadge($aff) ?>
+            </span>
             <div><?= Helpers::renderUserName($aff) ?><div class="muted">Status: <?= Helpers::h($aff['status']) ?></div></div>
             <?php if ($aff['status'] !== 'revoked'): ?>
                 <form action="/settings/affiliations" method="post">
@@ -87,7 +90,10 @@
 <?php else: ?>
     <?php foreach ($pendingAffiliations as $aff): ?>
         <div class="user-result">
-            <img src="<?= Helpers::avatarUrl($aff) ?>" class="small-avatar" alt="">
+            <span class="avatar-frame small-avatar-frame">
+                <img src="<?= Helpers::avatarUrl($aff) ?>" class="small-avatar" alt="">
+                <?= Helpers::adminAvatarBadge($aff) ?>
+            </span>
             <div><?= Helpers::renderUserName($aff) ?><div class="muted">@<?= Helpers::h($aff['username']) ?> wants to affiliate with you.</div></div>
             <form action="/settings/affiliations" method="post" class="button-row">
                 <?= Helpers::csrfField() ?>

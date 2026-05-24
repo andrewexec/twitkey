@@ -43,6 +43,54 @@
         return `(${count > 99 ? '99+' : count}) ${label}`;
     };
 
+    const rotatePostId = (form) => {
+        const input = form?.querySelector('[data-post-id]');
+        if (!input) {
+            return;
+        }
+        if (window.crypto?.randomUUID) {
+            input.value = window.crypto.randomUUID();
+            return;
+        }
+        input.value = `${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`;
+    };
+
+    const maxTweetId = (root = document) => Math.max(
+        0,
+        ...Array.from(root.querySelectorAll('.tweet-row[data-tweet-id]')).map((row) => Number(row.dataset.tweetId || '0'))
+    );
+
+    const insertTweetHtml = (timeline, html, mode = 'prepend') => {
+        if (!timeline || !html) {
+            return 0;
+        }
+        const template = document.createElement('template');
+        template.innerHTML = html.trim();
+        const nodes = Array.from(template.content.children);
+        const fragment = document.createDocumentFragment();
+        const inserted = [];
+        nodes.forEach((node) => {
+            const tweetId = node.dataset?.tweetId || '';
+            const safeTweetId = tweetId.replace(/[^0-9]/g, '');
+            if (safeTweetId !== '' && timeline.querySelector(`.tweet-row[data-tweet-id="${safeTweetId}"]`)) {
+                return;
+            }
+            fragment.appendChild(node);
+            inserted.push(node);
+        });
+        if (inserted.length === 0) {
+            return 0;
+        }
+        timeline.querySelector('.empty-state')?.remove();
+        if (mode === 'append') {
+            timeline.appendChild(fragment);
+        } else {
+            timeline.insertBefore(fragment, timeline.firstChild);
+        }
+        inserted.forEach((node) => wireDynamic(node));
+        return inserted.length;
+    };
+
     const setupCounter = (textarea) => {
         const target = document.querySelector(textarea.dataset.counterTarget || '');
         const form = textarea.closest('form');
@@ -92,29 +140,42 @@
     };
 
     document.querySelectorAll('[data-tweet-form]').forEach((form) => {
+        if (form.dataset.bound) {
+            return;
+        }
+        form.dataset.bound = '1';
         form.addEventListener('submit', async (event) => {
             if (!window.fetch) {
                 return;
             }
             event.preventDefault();
+            if (form.dataset.submitting === '1') {
+                return;
+            }
+            form.dataset.submitting = '1';
             const button = form.querySelector('button[type="submit"]');
-            button.disabled = true;
+            if (button) {
+                button.disabled = true;
+            }
             try {
                 const data = await jsonFetch(form.action, { method: 'POST', body: new FormData(form) });
                 const timeline = document.querySelector('#timeline');
                 if (data.scheduled) {
                     alert('Post scheduled. It will appear when the selected time arrives.');
                 } else if (timeline && data.html) {
-                    timeline.insertAdjacentHTML('afterbegin', data.html);
-                    wireDynamic(timeline.firstElementChild);
+                    insertTweetHtml(timeline, data.html, 'prepend');
                 }
                 form.reset();
                 resetComposeExtras(form);
+                rotatePostId(form);
                 form.querySelectorAll('textarea[data-counter-target]').forEach((textarea) => textarea.dispatchEvent(new Event('input')));
             } catch (error) {
                 alert(error.message);
             } finally {
-                button.disabled = false;
+                form.dataset.submitting = '0';
+                if (button) {
+                    button.disabled = false;
+                }
             }
         });
     });
@@ -274,8 +335,7 @@
                     const data = await jsonFetch(form.action, { method: 'POST', body: new FormData(form) });
                     const timeline = document.querySelector('#timeline');
                     if (timeline && data.html) {
-                        timeline.insertAdjacentHTML('afterbegin', data.html);
-                        wireDynamic(timeline.firstElementChild);
+                        insertTweetHtml(timeline, data.html, 'prepend');
                     }
                 } catch (error) {
                     alert(error.message);
@@ -325,14 +385,20 @@
                     const data = await jsonFetch(form.action, { method: 'POST', body: new FormData(form) });
                     const row = form.closest('.tweet-row');
                     if (row && data.html) {
-                        row.insertAdjacentHTML('afterend', data.html);
-                        wireDynamic(row.nextElementSibling);
+                        const repliesTimeline = document.querySelector('#replies-timeline');
+                        if (repliesTimeline && row.closest('.tweet-detail')) {
+                            insertTweetHtml(repliesTimeline, data.html, 'append');
+                        } else {
+                            row.insertAdjacentHTML('afterend', data.html);
+                            wireDynamic(row.nextElementSibling);
+                        }
                         const count = row.querySelector('.reply-count');
                         if (count) {
                             count.textContent = String(Number(count.textContent || '0') + 1);
                         }
                     }
                     form.reset();
+                    rotatePostId(form);
                     form.classList.remove('open');
                 } catch (error) {
                     alert(error.message);
@@ -587,26 +653,19 @@
 
     const wireRealtimeFeeds = () => {
         document.querySelectorAll('[data-realtime-feed]').forEach((timeline) => {
-            let since = Math.max(0, ...Array.from(timeline.querySelectorAll('[data-tweet-id]')).map((row) => Number(row.dataset.tweetId || '0')));
             const insertMode = timeline.dataset.realtimeInsert || 'prepend';
             const pollFeed = async () => {
                 if (document.hidden) {
                     return;
                 }
                 try {
+                    const since = maxTweetId(timeline);
                     const separator = timeline.dataset.realtimeFeed.includes('?') ? '&' : '?';
                     const data = await jsonFetch(`${timeline.dataset.realtimeFeed}${separator}since_id=${since}`);
                     if (!data.html) {
                         return;
                     }
-                    timeline.querySelector('.empty-state')?.remove();
-                    if (insertMode === 'append') {
-                        timeline.insertAdjacentHTML('beforeend', data.html);
-                    } else {
-                        timeline.insertAdjacentHTML('afterbegin', data.html);
-                    }
-                    wireDynamic(timeline);
-                    since = Math.max(since, ...Array.from(timeline.querySelectorAll('[data-tweet-id]')).map((row) => Number(row.dataset.tweetId || '0')));
+                    insertTweetHtml(timeline, data.html, insertMode);
                 } catch {
                     // Ignore transient polling failures.
                 }

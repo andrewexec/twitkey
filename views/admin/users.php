@@ -8,7 +8,7 @@
 <div class="content-header">
     <h1>Manage Users</h1>
 </div>
-<table class="admin-table">
+<table class="admin-table admin-users-table">
     <thead>
     <tr><th>ID</th><th>Avatar</th><th>Username</th><th>Role</th><th>Verified</th><th>Admin</th><th>Suspended</th><th>Joined</th><th>Actions</th></tr>
     </thead>
@@ -17,7 +17,12 @@
         <?php $verifiedLabel = $user['verified_type'] ?: ((int)($user['is_verified'] ?? 0) === 1 ? 'normal' : '-'); ?>
         <tr>
             <td><?= (int)$user['id'] ?></td>
-            <td><img src="<?= Helpers::avatarUrl($user) ?>" class="tiny-avatar" alt=""></td>
+            <td>
+                <span class="avatar-frame tiny-avatar-frame">
+                    <img src="<?= Helpers::avatarUrl($user) ?>" class="tiny-avatar" alt="">
+                    <?= Helpers::adminAvatarBadge($user) ?>
+                </span>
+            </td>
             <td><?= Helpers::renderUserName($user) ?><div class="muted">@<?= Helpers::h($user['username']) ?></div></td>
             <td><?= Helpers::h($user['role']) ?></td>
             <td><?= Helpers::h($verifiedLabel) ?></td>

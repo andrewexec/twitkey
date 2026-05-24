@@ -20,12 +20,15 @@ $tweetId = (int)($tweet['id'] ?? 0);
 $favorited = $currentUser ? Tweet::isFavorited((int)$currentUser['id'], $tweetId) : false;
 ?>
 <article class="tweet-row<?= $deleted ? ' tweet-row-deleted' : '' ?>" id="tweet-<?= $tweetId ?>" data-tweet-id="<?= $tweetId ?>">
-    <a href="/<?= Helpers::h($author['username']) ?>"><img src="<?= Helpers::avatarUrl($author) ?>" class="tweet-avatar" alt=""></a>
+    <a href="/<?= Helpers::h($author['username']) ?>" class="avatar-frame tweet-avatar-frame">
+        <img src="<?= Helpers::avatarUrl($author) ?>" class="tweet-avatar" alt="">
+        <?= Helpers::adminAvatarBadge($author) ?>
+    </a>
     <div class="tweet-content">
         <?php if ($deleted): ?>
             <span class="tweet-body deleted-text">[Tweet deleted]</span>
         <?php else: ?>
-            <strong><?= Helpers::renderUserName($author) ?></strong> <?= Helpers::followsYouBadge($author) ?>
+            <strong><?= Helpers::renderUserName($author) ?></strong>
             <?php if (!empty($tweet['reply_to_id']) && !empty($tweet['reply_parent_username'])): ?>
                 <div class="reply-context">
                     Replying to <a href="/<?= Helpers::h($tweet['reply_parent_username']) ?>">@<?= Helpers::h($tweet['reply_parent_username']) ?></a>
@@ -125,6 +128,7 @@ $favorited = $currentUser ? Tweet::isFavorited((int)$currentUser['id'], $tweetId
         <?php if ($currentUser && !$deleted): ?>
             <form action="/tweet/<?= $tweetId ?>/reply" method="post" enctype="multipart/form-data" class="inline-reply" data-reply-form>
                 <?= Helpers::csrfField() ?>
+                <input type="hidden" name="_post_id" value="<?= Helpers::h(bin2hex(random_bytes(16))) ?>" data-post-id>
                 <textarea name="body" maxlength="140" placeholder="Reply to @<?= Helpers::h($author['username']) ?>"></textarea>
                 <input type="file" name="attachments[]" accept="image/jpeg,image/png,image/gif,image/webp,audio/*,video/*,.mp3,.mp4,.mov,.m4a,.aac,.wav,.ogg,.flac,.aiff,.wma,.webm,.ogv,.avi,.wmv,.mkv" multiple class="hidden-file" data-attachment-input>
                 <button type="button" class="reply-attach" data-attachment-button>Attach media</button>

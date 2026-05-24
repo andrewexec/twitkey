@@ -527,6 +527,15 @@ select {
     padding: 40px 0;
 }
 
+.page-wrap-wide {
+    display: block;
+    width: 1100px;
+    background: #fff;
+    border: 1px solid var(--border-main);
+    border-top: none;
+    padding: 0;
+}
+
 .main-col {
     width: 629px;
     background: #fff;
@@ -538,6 +547,13 @@ select {
     min-height: 0;
     margin: 0 auto;
     background: transparent;
+}
+
+.main-col-wide {
+    width: 100%;
+    min-height: 500px;
+    margin: 0;
+    background: #fff;
 }
 
 .sidebar {
@@ -945,10 +961,191 @@ select {
 .image-badge {
     width: 18px;
     height: 18px;
-    margin-left: 4px;
+    margin-left: 0;
     vertical-align: middle;
     object-fit: contain;
     image-rendering: pixelated;
+}
+
+.avatar-frame {
+    position: relative;
+    display: inline-block;
+    vertical-align: middle;
+    line-height: 0;
+    overflow: visible;
+}
+
+.avatar-frame img {
+    display: block;
+}
+
+.avatar-admin-badge.tooltip-wrap {
+    position: absolute;
+    right: -5px;
+    bottom: -5px;
+    z-index: 4;
+    width: 18px;
+    height: 18px;
+    margin-left: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.avatar-admin-badge img {
+    width: 18px;
+    height: 18px;
+    border: 1px solid rgba(0, 0, 0, .24);
+    border-radius: 4px;
+    background: #fff;
+    object-fit: contain;
+    image-rendering: auto;
+}
+
+.tweet-avatar-frame {
+    float: left;
+    margin-right: 10px;
+}
+
+.tweet-avatar-frame .tweet-avatar {
+    float: none;
+    margin-right: 0;
+}
+
+.tweet-avatar-frame .avatar-admin-badge,
+.compose-avatar-frame .avatar-admin-badge,
+.profile-mini-avatar-frame .avatar-admin-badge {
+    right: -6px;
+    bottom: -6px;
+    width: 22px;
+    height: 22px;
+}
+
+.tweet-avatar-frame .avatar-admin-badge img,
+.compose-avatar-frame .avatar-admin-badge img,
+.profile-mini-avatar-frame .avatar-admin-badge img {
+    width: 22px;
+    height: 22px;
+    border-radius: 5px;
+}
+
+.compose-avatar-frame {
+    flex: 0 0 auto;
+    margin-top: 20px;
+}
+
+.compose-avatar-frame .compose-avatar {
+    margin-top: 0;
+}
+
+.profile-mini-avatar-frame {
+    display: block;
+    width: 73px;
+    height: 73px;
+}
+
+.profile-avatar-frame {
+    float: left;
+    margin-right: 12px;
+}
+
+.profile-avatar-frame .profile-avatar {
+    float: none;
+    margin-right: 0;
+}
+
+.profile-avatar-frame .avatar-admin-badge {
+    right: -8px;
+    bottom: -8px;
+    width: 30px;
+    height: 30px;
+}
+
+.profile-avatar-frame .avatar-admin-badge img {
+    width: 30px;
+    height: 30px;
+    border-radius: 7px;
+}
+
+.suggestion-avatar-frame {
+    float: left;
+    margin-right: 8px;
+}
+
+.suggestion-avatar-frame .suggestion-avatar {
+    float: none;
+    margin-right: 0;
+}
+
+.small-avatar-frame,
+.dm-avatar-frame,
+.tiny-avatar-frame {
+    flex: 0 0 auto;
+}
+
+.tiny-avatar-frame .avatar-admin-badge {
+    right: -4px;
+    bottom: -4px;
+    width: 13px;
+    height: 13px;
+}
+
+.tiny-avatar-frame .avatar-admin-badge img {
+    width: 13px;
+    height: 13px;
+    border-radius: 3px;
+}
+
+.tooltip-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
+.tooltip-wrap::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 5px);
+    z-index: 3000;
+    min-width: max-content;
+    max-width: 240px;
+    transform: translateX(-50%) translateY(2px);
+    padding: 3px 6px;
+    border: 1px solid #222;
+    background: #333;
+    color: #fff;
+    font-size: 11px;
+    line-height: 14px;
+    font-weight: normal;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .04s linear, transform .04s linear;
+}
+
+.tooltip-wrap::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 1px);
+    z-index: 3001;
+    transform: translateX(-50%);
+    border: 4px solid transparent;
+    border-top-color: #333;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .04s linear;
+}
+
+.tooltip-wrap:hover::after,
+.tooltip-wrap:focus-visible::after,
+.tooltip-wrap:hover::before,
+.tooltip-wrap:focus-visible::before {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
 }
 
 .admin-image-badge {
@@ -1630,6 +1827,7 @@ select {
     width: 100%;
     border-collapse: collapse;
     font-size: 12px;
+    table-layout: fixed;
 }
 
 .admin-table th,
@@ -1644,11 +1842,43 @@ select {
     background: var(--bg-body);
 }
 
+.admin-users-table th:nth-child(1),
+.admin-users-table td:nth-child(1) {
+    width: 34px;
+}
+
+.admin-users-table th:nth-child(2),
+.admin-users-table td:nth-child(2) {
+    width: 56px;
+}
+
+.admin-users-table th:nth-child(4),
+.admin-users-table td:nth-child(4),
+.admin-users-table th:nth-child(5),
+.admin-users-table td:nth-child(5),
+.admin-users-table th:nth-child(6),
+.admin-users-table td:nth-child(6),
+.admin-users-table th:nth-child(7),
+.admin-users-table td:nth-child(7) {
+    width: 68px;
+}
+
+.admin-users-table th:nth-child(8),
+.admin-users-table td:nth-child(8) {
+    width: 86px;
+}
+
+.admin-users-table th:last-child,
+.admin-users-table td:last-child {
+    width: 360px;
+}
+
 .admin-actions {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 4px;
     margin: 0;
+    max-width: 352px;
 }
 
 .admin-actions button,
@@ -1659,6 +1889,11 @@ select {
     font-size: 11px;
     padding: 2px 5px;
     cursor: pointer;
+    width: 100%;
+    min-height: 23px;
+    line-height: 16px;
+    text-align: center;
+    overflow-wrap: anywhere;
 }
 
 .admin-actions a {
@@ -1667,7 +1902,8 @@ select {
 
 .admin-actions textarea,
 .admin-actions input[type="text"] {
-    width: 180px;
+    grid-column: 1 / -1;
+    width: 100%;
     border: 1px solid var(--border-input);
     font-size: 11px;
     padding: 3px 5px;

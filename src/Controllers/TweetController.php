@@ -19,12 +19,17 @@ final class TweetController
     {
         Helpers::verifyCsrf();
         $user = Auth::requireActiveUser();
+        $existing = $this->existingTweetForPostId();
+        if ($existing) {
+            $this->respondWithTweet($existing, $user);
+        }
         $this->rateLimit((int)$user['id']);
         $media = [];
         try {
             $media = $this->handleTweetMediaUploads();
             $metadata = $this->tweetMetadata($media);
             $tweet = Tweet::create((int)$user['id'], (string)($_POST['body'] ?? ''), null, null, $metadata);
+            $this->rememberPostId((int)$tweet['id']);
             if (Helpers::wantsJson()) {
                 $html = Helpers::renderPartial('partials/tweet_row', ['tweet' => $tweet, 'currentUser' => $user]);
                 Helpers::json(['ok' => true, 'html' => $html, 'scheduled' => !empty($metadata['scheduled_at']) && strtotime((string)$metadata['scheduled_at']) > time()]);
@@ -77,6 +82,10 @@ final class TweetController
     {
         Helpers::verifyCsrf();
         $user = Auth::requireActiveUser();
+        $existing = $this->existingTweetForPostId();
+        if ($existing) {
+            $this->respondWithTweet($existing, $user);
+        }
         $this->rateLimit((int)$user['id']);
         try {
             $parent = Tweet::findWithUser((int)$id);
@@ -86,6 +95,7 @@ final class TweetController
             $media = $this->handleTweetMediaUploads();
             $metadata = ['media' => $media];
             $tweet = Tweet::create((int)$user['id'], (string)($_POST['body'] ?? ''), (int)$id, null, $metadata);
+            $this->rememberPostId((int)$tweet['id']);
             if (Helpers::wantsJson()) {
                 $html = Helpers::renderPartial('partials/tweet_row', ['tweet' => $tweet, 'currentUser' => $user]);
                 Helpers::json(['ok' => true, 'html' => $html]);
@@ -185,7 +195,7 @@ final class TweetController
     {
         CommunityNote::autoModerate();
         $user = Auth::requireLogin();
-        if (!Helpers::eligibleForNotes($user)) {
+        if (!Auth::isAdmin() && !Helpers::eligibleForNotes($user)) {
             http_response_code(403);
             Helpers::render('errors/403', ['title' => 'Not Eligible'], true);
             return;
@@ -264,6 +274,61 @@ final class TweetController
         }
         $times[] = $now;
         $_SESSION[$key] = $times;
+    }
+
+    /**
+     * Return an existing tweet when the same form post id is replayed.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function existingTweetForPostId(): ?array
+    {
+        $postId = $this->postId();
+        if ($postId === '') {
+            return null;
+        }
+        $tweetId = (int)($_SESSION['post_idempotency'][$postId] ?? 0);
+        return $tweetId > 0 ? Tweet::findWithUser($tweetId, true) : null;
+    }
+
+    /**
+     * Remember a successful form post id for duplicate-submit protection.
+     */
+    private function rememberPostId(int $tweetId): void
+    {
+        $postId = $this->postId();
+        if ($postId === '') {
+            return;
+        }
+        $_SESSION['post_idempotency'] = $_SESSION['post_idempotency'] ?? [];
+        $_SESSION['post_idempotency'][$postId] = $tweetId;
+        if (count($_SESSION['post_idempotency']) > 50) {
+            $_SESSION['post_idempotency'] = array_slice($_SESSION['post_idempotency'], -50, null, true);
+        }
+    }
+
+    /**
+     * Return the current idempotency key if it has an expected shape.
+     */
+    private function postId(): string
+    {
+        $postId = (string)($_POST['_post_id'] ?? '');
+        return preg_match('/^[A-Za-z0-9-]{16,80}$/', $postId) === 1 ? $postId : '';
+    }
+
+    /**
+     * Return a previously created tweet for a duplicate form submission.
+     *
+     * @param array<string, mixed> $tweet
+     * @param array<string, mixed> $user
+     */
+    private function respondWithTweet(array $tweet, array $user): never
+    {
+        if (Helpers::wantsJson()) {
+            $html = Helpers::renderPartial('partials/tweet_row', ['tweet' => $tweet, 'currentUser' => $user]);
+            Helpers::json(['ok' => true, 'html' => $html, 'duplicate' => true]);
+        }
+        Helpers::redirect($_SERVER['HTTP_REFERER'] ?? '/');
     }
 
     /**

@@ -295,33 +295,43 @@ final class Helpers
     }
 
     /**
-     * Render admin, verification, and affiliation badges for a user row.
+     * Render verification and affiliation badges for a user row.
      *
      * @param array<string, mixed> $user
      */
     public static function renderBadges(array $user): string
     {
         $html = '';
-        if ((int)($user['is_admin'] ?? 0) === 1) {
-            $html .= '<img src="/img/admin_badge.png" class="image-badge admin-image-badge" title="Administrator" alt="Administrator">';
-        }
         if (($user['verified_type'] ?? null) === 'business') {
-            $html .= '<img src="/img/verified_badge.webp" class="image-badge verified-image-badge" title="Verified Business" alt="Verified Business">';
+            $html .= '<span class="tooltip-wrap" data-tooltip="Verified Business"><img src="/img/verified_badge.webp" class="image-badge verified-image-badge" alt="Verified Business"></span>';
         } elseif (($user['verified_type'] ?? null) === 'government') {
-            $html .= '<img src="/img/verified_badge.webp" class="image-badge verified-image-badge" title="Verified Government" alt="Verified Government">';
+            $html .= '<span class="tooltip-wrap" data-tooltip="Verified Government"><img src="/img/verified_badge.webp" class="image-badge verified-image-badge" alt="Verified Government"></span>';
         } elseif ((int)($user['is_verified'] ?? 0) === 1) {
-            $html .= '<img src="/img/verified_badge.webp" class="image-badge verified-image-badge" title="Verified" alt="Verified">';
+            $html .= '<span class="tooltip-wrap" data-tooltip="Verified"><img src="/img/verified_badge.webp" class="image-badge verified-image-badge" alt="Verified"></span>';
         }
 
         $affiliation = self::acceptedAffiliation((int)($user['id'] ?? 0));
         if ($affiliation) {
             $avatarSrc = self::avatarUrl($affiliation);
             $username = self::h($affiliation['username']);
-            $html .= '<a href="/' . $username . '" title="Affiliated with @' . $username . '" class="affiliation-link">';
+            $html .= '<a href="/' . $username . '" data-tooltip="Affiliated with @' . $username . '" class="affiliation-link tooltip-wrap">';
             $html .= '<img src="' . $avatarSrc . '" class="affiliation-avatar" alt="@' . $username . '">';
             $html .= '</a>';
         }
         return $html;
+    }
+
+    /**
+     * Render the administrator badge as an avatar-corner overlay.
+     *
+     * @param array<string, mixed> $user
+     */
+    public static function adminAvatarBadge(array $user): string
+    {
+        if ((int)($user['is_admin'] ?? 0) !== 1) {
+            return '';
+        }
+        return '<span class="avatar-admin-badge tooltip-wrap" data-tooltip="Administrator"><img src="/img/admin_badge.png" alt="Administrator"></span>';
     }
 
     /**
@@ -333,7 +343,7 @@ final class Helpers
     {
         $username = self::h($user['username'] ?? '');
         $display = self::h($user['display_name'] ?? $user['username'] ?? '');
-        $lock = (int)($user['is_private'] ?? 0) === 1 ? '<span class="lock-badge" title="Private account">🔒</span>' : '';
+        $lock = (int)($user['is_private'] ?? 0) === 1 ? '<span class="lock-badge tooltip-wrap" data-tooltip="Private account">🔒</span>' : '';
         return '<a href="/' . $username . '" class="username">' . $display . '</a>' . self::renderBadges($user) . $lock;
     }
 
@@ -353,7 +363,7 @@ final class Helpers
             'SELECT id FROM follows WHERE follower_id = :user_id AND following_id = :viewer_id LIMIT 1',
             ['user_id' => $userId, 'viewer_id' => (int)$viewer['id']]
         ) !== null;
-        return $followsViewer ? '<span class="follows-you">Follows you</span>' : '';
+        return $followsViewer ? '<span class="follows-you tooltip-wrap" data-tooltip="This user follows you">Follows you</span>' : '';
     }
 
     /**

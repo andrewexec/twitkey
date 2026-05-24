@@ -14,11 +14,13 @@ $bannerUrl = Helpers::bannerUrl($profile);
             <?php endif; ?>
         </div>
     <?php endif; ?>
-    <img src="<?= Helpers::avatarUrl($profile) ?>" class="profile-avatar" alt="">
+    <span class="avatar-frame profile-avatar-frame">
+        <img src="<?= Helpers::avatarUrl($profile) ?>" class="profile-avatar" alt="">
+        <?= Helpers::adminAvatarBadge($profile) ?>
+    </span>
     <div class="profile-info">
-        <h1><?= Helpers::h($profile['display_name']) ?> <?= Helpers::renderBadges($profile) ?><?= (int)($profile['is_private'] ?? 0) === 1 ? ' <span class="lock-badge" title="Private account">🔒</span>' : '' ?></h1>
-        <div class="profile-username">@<?= Helpers::h($profile['username']) ?><?= (int)($profile['is_private'] ?? 0) === 1 ? ' <span title="Private account">🔒</span>' : '' ?></div>
-        <?= Helpers::followsYouBadge($profile) ?>
+        <h1><?= Helpers::h($profile['display_name']) ?> <?= Helpers::renderBadges($profile) ?><?= (int)($profile['is_private'] ?? 0) === 1 ? ' <span class="lock-badge tooltip-wrap" data-tooltip="Private account">🔒</span>' : '' ?></h1>
+        <div class="profile-username">@<?= Helpers::h($profile['username']) ?><?= (int)($profile['is_private'] ?? 0) === 1 ? ' <span class="lock-badge tooltip-wrap" data-tooltip="Private account">🔒</span>' : '' ?> <?= Helpers::followsYouBadge($profile) ?></div>
         <?php if ((int)$profile['is_admin'] === 1): ?>
             <div class="staff-label">This user is a Administrator of <?= Helpers::h(Helpers::env('APP_NAME', 'Twitkey')) ?></div>
         <?php endif; ?>

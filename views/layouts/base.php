@@ -56,9 +56,13 @@ $siteAlert = Database::instance()->one('SELECT id, message, updated_at FROM site
 <div class="subheader">
     <div class="subheader-inner">
         <?php if ($currentUser): ?>
-            <img src="<?= Helpers::avatarUrl($currentUser) ?>" class="compose-avatar" alt="">
+            <span class="avatar-frame compose-avatar-frame">
+                <img src="<?= Helpers::avatarUrl($currentUser) ?>" class="compose-avatar" alt="">
+                <?= Helpers::adminAvatarBadge($currentUser) ?>
+            </span>
             <form action="/tweet" method="post" enctype="multipart/form-data" class="compose-form" data-tweet-form>
                 <?= Helpers::csrfField() ?>
+                <input type="hidden" name="_post_id" value="<?= Helpers::h(bin2hex(random_bytes(16))) ?>" data-post-id>
                 <label for="compose-body">What are you doing?</label>
                 <textarea id="compose-body" name="body" maxlength="140" data-counter-target="#compose-count"></textarea>
                 <div class="compose-tools">
@@ -113,21 +117,24 @@ $siteAlert = Database::instance()->one('SELECT id, message, updated_at FROM site
     </div>
 </div>
 
-<div class="page-wrap<?= !empty($hideSidebar) ? ' page-wrap-centered' : '' ?>">
-    <main class="main-col<?= !empty($hideSidebar) ? ' main-col-centered' : '' ?>">
+<div class="page-wrap<?= !empty($hideSidebar) ? ' page-wrap-centered' : '' ?><?= !empty($wideLayout) ? ' page-wrap-wide' : '' ?>">
+    <main class="main-col<?= !empty($hideSidebar) ? ' main-col-centered' : '' ?><?= !empty($wideLayout) ? ' main-col-wide' : '' ?>">
         <?php foreach (Session::consumeFlash() as $flash): ?>
             <div class="flash flash-<?= Helpers::h($flash['type']) ?>"><?= Helpers::h($flash['message']) ?></div>
         <?php endforeach; ?>
         <?= $content ?>
     </main>
 
-    <?php if (empty($hideSidebar)): ?>
+    <?php if (empty($hideSidebar) && empty($wideLayout)): ?>
         <aside class="sidebar">
             <?php if ($currentUser): ?>
                 <section class="side-box profile-mini">
                     <div class="side-header">@<?= Helpers::h($currentUser['username']) ?> <a href="/settings">edit profile</a></div>
                     <div class="profile-mini-body">
-                        <img src="<?= Helpers::avatarUrl($currentUser) ?>" alt="" class="profile-mini-avatar">
+                        <span class="avatar-frame profile-mini-avatar-frame">
+                            <img src="<?= Helpers::avatarUrl($currentUser) ?>" alt="" class="profile-mini-avatar">
+                            <?= Helpers::adminAvatarBadge($currentUser) ?>
+                        </span>
                         <p><?= Helpers::h($currentUser['bio'] ?: 'No bio yet.') ?></p>
                         <div class="mini-stats">
                             <a href="/<?= Helpers::h($currentUser['username']) ?>/following">Following: <?= (int)$currentUser['following_count'] ?></a>
@@ -160,9 +167,12 @@ $siteAlert = Database::instance()->one('SELECT id, message, updated_at FROM site
                 <?php else: ?>
                     <?php foreach ($sidebar['suggestions'] as $suggestion): ?>
                         <div class="suggestion">
-                            <img src="<?= Helpers::avatarUrl($suggestion) ?>" alt="" class="suggestion-avatar">
+                            <span class="avatar-frame suggestion-avatar-frame">
+                                <img src="<?= Helpers::avatarUrl($suggestion) ?>" alt="" class="suggestion-avatar">
+                                <?= Helpers::adminAvatarBadge($suggestion) ?>
+                            </span>
                             <div class="suggestion-body">
-                                <?= Helpers::renderUserName($suggestion) ?> <?= Helpers::followsYouBadge($suggestion) ?>
+                                <?= Helpers::renderUserName($suggestion) ?>
                                 <div class="suggestion-bio"><?= Helpers::h(Helpers::truncate((string)$suggestion['bio'], 40)) ?></div>
                                 <?php if ($currentUser): ?>
                                     <form action="/follow/<?= Helpers::h($suggestion['username']) ?>" method="post" data-follow-form>

@@ -32,6 +32,7 @@ final class AdminController
             ],
             'logs' => $db->all('SELECT l.*, u.username FROM admin_log l JOIN users u ON u.id = l.admin_id ORDER BY l.created_at DESC LIMIT 10'),
             'siteAlert' => $db->one('SELECT * FROM site_alerts ORDER BY updated_at DESC, id DESC LIMIT 1'),
+            'wideLayout' => true,
         ]);
     }
 
@@ -60,7 +61,7 @@ final class AdminController
     public function users(): void
     {
         Auth::requireAdmin();
-        Helpers::render('admin/users', ['title' => 'Manage Users', 'users' => User::adminList(Helpers::page()), 'page' => Helpers::page()]);
+        Helpers::render('admin/users', ['title' => 'Manage Users', 'users' => User::adminList(Helpers::page()), 'page' => Helpers::page(), 'wideLayout' => true]);
     }
 
     /**
@@ -99,7 +100,7 @@ final class AdminController
     public function tweets(): void
     {
         Auth::requireAdmin();
-        Helpers::render('admin/tweets', ['title' => 'Manage Tweets', 'tweets' => Tweet::adminList(Helpers::page()), 'page' => Helpers::page()]);
+        Helpers::render('admin/tweets', ['title' => 'Manage Tweets', 'tweets' => Tweet::adminList(Helpers::page()), 'page' => Helpers::page(), 'wideLayout' => true]);
     }
 
     /**
@@ -136,7 +137,7 @@ final class AdminController
     public function notes(): void
     {
         Auth::requireAdmin();
-        Helpers::render('admin/notes', ['title' => 'Community Notes', 'notes' => CommunityNote::adminList(Helpers::page()), 'page' => Helpers::page()]);
+        Helpers::render('admin/notes', ['title' => 'Community Notes', 'notes' => CommunityNote::adminList(Helpers::page()), 'page' => Helpers::page(), 'wideLayout' => true]);
     }
 
     /**

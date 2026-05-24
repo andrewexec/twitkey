@@ -14,9 +14,12 @@ $sender = [
 ];
 ?>
 <div class="dm-message<?= (int)$message['sender_id'] === (int)$currentUser['id'] ? ' mine' : '' ?>" data-message-id="<?= (int)$message['id'] ?>">
-    <img src="<?= Helpers::avatarUrl($sender) ?>" class="small-avatar" alt="">
+    <span class="avatar-frame small-avatar-frame">
+        <img src="<?= Helpers::avatarUrl($sender) ?>" class="small-avatar" alt="">
+        <?= Helpers::adminAvatarBadge($sender) ?>
+    </span>
     <div>
-        <?= Helpers::renderUserName($sender) ?> <?= Helpers::followsYouBadge($sender) ?>
+        <?= Helpers::renderUserName($sender) ?>
         <p><?= Helpers::h($message['body']) ?></p>
         <span><?= Helpers::timeAgo($message['created_at']) ?></span>
     </div>

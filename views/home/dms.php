@@ -9,8 +9,11 @@
         <?php else: ?>
             <?php foreach ($conversations as $conversation): ?>
                 <a class="dm-conversation<?= $selected && (int)$selected['id'] === (int)$conversation['id'] ? ' active' : '' ?>" href="/direct_messages?user=<?= Helpers::h($conversation['username']) ?>">
-                    <img src="<?= Helpers::avatarUrl($conversation) ?>" class="dm-avatar" alt="">
-                    <span><?= Helpers::h($conversation['display_name'] ?: $conversation['username']) ?><?= Helpers::renderBadges($conversation) ?><?= (int)($conversation['is_private'] ?? 0) === 1 ? ' <span class="lock-badge" title="Private account">🔒</span>' : '' ?> <?= Helpers::followsYouBadge($conversation) ?></span>
+                    <span class="avatar-frame dm-avatar-frame">
+                        <img src="<?= Helpers::avatarUrl($conversation) ?>" class="dm-avatar" alt="">
+                        <?= Helpers::adminAvatarBadge($conversation) ?>
+                    </span>
+                    <span><?= Helpers::h($conversation['display_name'] ?: $conversation['username']) ?><?= Helpers::renderBadges($conversation) ?><?= (int)($conversation['is_private'] ?? 0) === 1 ? ' <span class="lock-badge tooltip-wrap" data-tooltip="Private account">🔒</span>' : '' ?></span>
                     <?php if ((int)$conversation['unread_count'] > 0): ?><b><?= (int)$conversation['unread_count'] ?></b><?php endif; ?>
                 </a>
             <?php endforeach; ?>

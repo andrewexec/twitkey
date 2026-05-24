@@ -7,9 +7,12 @@
 <?php else: ?>
     <?php foreach ($users as $user): ?>
         <div class="user-result">
-            <img src="<?= Helpers::avatarUrl($user) ?>" class="small-avatar" alt="">
+            <span class="avatar-frame small-avatar-frame">
+                <img src="<?= Helpers::avatarUrl($user) ?>" class="small-avatar" alt="">
+                <?= Helpers::adminAvatarBadge($user) ?>
+            </span>
             <div>
-                <?= Helpers::renderUserName($user) ?> <?= Helpers::followsYouBadge($user) ?>
+                <?= Helpers::renderUserName($user) ?>
                 <div class="muted">@<?= Helpers::h($user['username']) ?> · <?= Helpers::h(Helpers::truncate((string)$user['bio'], 80)) ?></div>
             </div>
         </div>
