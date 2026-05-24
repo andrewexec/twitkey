@@ -12,19 +12,19 @@ final class Tweet
      *
      * @return array<string, mixed>
      */
-    public static function create(int $userId, string $body, ?int $replyToId = null, ?int $retweetOfId = null): array
+    public static function create(int $userId, string $body, ?int $replyToId = null, ?int $retweetOfId = null, array $metadata = []): array
     {
         $body = trim($body);
-        if ($body === '') {
-            throw new \InvalidArgumentException('Tweet body is required.');
-        }
         if (strlen($body) > 140) {
             throw new \InvalidArgumentException('Tweets are limited to 140 characters.');
         }
+        if ($body === '' && empty($metadata['media']) && empty($metadata['gif_url']) && empty($metadata['poll'])) {
+            throw new \InvalidArgumentException('Tweet body, media, GIF, or poll is required.');
+        }
 
         $db = Database::instance();
-        return $db->transaction(static function () use ($db, $userId, $body, $replyToId, $retweetOfId): array {
-            $tweetId = self::insertTweet($db, $userId, $body, $replyToId, $retweetOfId);
+        return $db->transaction(static function () use ($db, $userId, $body, $replyToId, $retweetOfId, $metadata): array {
+            $tweetId = self::insertTweet($db, $userId, $body, $replyToId, $retweetOfId, $metadata);
             return self::findWithUser($tweetId, true) ?? [];
         });
     }
@@ -36,7 +36,7 @@ final class Tweet
      */
     public static function feedForUser(int $userId, int $page, ?int $lastId = null): array
     {
-        $where = 't.is_deleted = 0 AND u.is_suspended = 0 AND (t.user_id = :user_id OR t.user_id IN (SELECT following_id FROM follows WHERE follower_id = :user_id))';
+        $where = 't.is_deleted = 0 AND u.is_suspended = 0 AND ' . self::publishedWhere() . ' AND (t.user_id = :user_id OR t.user_id IN (SELECT following_id FROM follows WHERE follower_id = :user_id))';
         return self::feed($where, ['user_id' => $userId], $page, $lastId);
     }
 
@@ -47,7 +47,7 @@ final class Tweet
      */
     public static function publicTimeline(int $page, ?int $lastId = null): array
     {
-        return self::feed('t.is_deleted = 0 AND u.is_suspended = 0', [], $page, $lastId);
+        return self::feed('t.is_deleted = 0 AND u.is_suspended = 0 AND ' . self::publishedWhere(), [], $page, $lastId);
     }
 
     /**
@@ -59,11 +59,11 @@ final class Tweet
     {
         $params = ['user_id' => $userId];
         if ($tab === 'favorites') {
-            $where = 't.id IN (SELECT tweet_id FROM favorites WHERE user_id = :user_id) AND t.is_deleted = 0';
+            $where = 't.id IN (SELECT tweet_id FROM favorites WHERE user_id = :user_id) AND t.is_deleted = 0 AND ' . self::publishedWhere();
         } elseif ($tab === 'replies') {
-            $where = 't.user_id = :user_id AND t.reply_to_id IS NOT NULL AND t.is_deleted = 0';
+            $where = 't.user_id = :user_id AND t.reply_to_id IS NOT NULL AND t.is_deleted = 0 AND ' . self::publishedWhere();
         } else {
-            $where = 't.user_id = :user_id AND t.is_deleted = 0';
+            $where = 't.user_id = :user_id AND t.is_deleted = 0 AND ' . self::publishedWhere();
         }
         if (!$includeSuspended) {
             $where .= ' AND u.is_suspended = 0';
@@ -79,7 +79,7 @@ final class Tweet
     public static function search(string $query, int $page): array
     {
         $term = '%' . $query . '%';
-        return self::feed('t.is_deleted = 0 AND u.is_suspended = 0 AND lower(t.body) LIKE lower(:term)', ['term' => $term], $page, null);
+        return self::feed('t.is_deleted = 0 AND u.is_suspended = 0 AND ' . self::publishedWhere() . ' AND lower(t.body) LIKE lower(:term)', ['term' => $term], $page, null);
     }
 
     /**
@@ -90,7 +90,7 @@ final class Tweet
     public static function mentionsFor(string $username, int $page): array
     {
         $term = '%@' . $username . '%';
-        return self::feed('t.is_deleted = 0 AND u.is_suspended = 0 AND lower(t.body) LIKE lower(:term)', ['term' => strtolower($term)], $page, null);
+        return self::feed('t.is_deleted = 0 AND u.is_suspended = 0 AND ' . self::publishedWhere() . ' AND lower(t.body) LIKE lower(:term)', ['term' => strtolower($term)], $page, null);
     }
 
     /**
@@ -115,7 +115,7 @@ final class Tweet
      */
     public static function repliesTo(int $tweetId, bool $includeDeleted = true): array
     {
-        $where = 't.reply_to_id = :tweet_id';
+        $where = 't.reply_to_id = :tweet_id AND ' . self::publishedWhere();
         if (!$includeDeleted) {
             $where .= ' AND t.is_deleted = 0';
         }
@@ -217,6 +217,32 @@ final class Tweet
     }
 
     /**
+     * Vote for a poll option, replacing the user's previous vote in the same poll.
+     */
+    public static function votePoll(int $tweetId, int $optionId, int $userId): void
+    {
+        $db = Database::instance();
+        $poll = $db->one(
+            'SELECT p.*, t.scheduled_at FROM polls p JOIN tweets t ON t.id = p.tweet_id JOIN poll_options po ON po.poll_id = p.id WHERE p.tweet_id = :tweet_id AND po.id = :option_id AND t.is_deleted = 0',
+            ['tweet_id' => $tweetId, 'option_id' => $optionId]
+        );
+        if (!$poll) {
+            throw new \InvalidArgumentException('Poll option not found.');
+        }
+        if (!empty($poll['scheduled_at']) && strtotime((string)$poll['scheduled_at']) > time()) {
+            throw new \RuntimeException('This poll is not open yet.');
+        }
+        if (!empty($poll['closes_at']) && strtotime((string)$poll['closes_at']) < time()) {
+            throw new \RuntimeException('This poll is closed.');
+        }
+
+        $db->transaction(static function () use ($db, $poll, $optionId, $userId): void {
+            $db->execute('DELETE FROM poll_votes WHERE poll_id = :poll_id AND user_id = :user_id', ['poll_id' => (int)$poll['id'], 'user_id' => $userId]);
+            $db->execute('INSERT INTO poll_votes (poll_id, option_id, user_id) VALUES (:poll_id, :option_id, :user_id)', ['poll_id' => (int)$poll['id'], 'option_id' => $optionId, 'user_id' => $userId]);
+        });
+    }
+
+    /**
      * Return recent tweets for the admin table.
      *
      * @return array<int, array<string, mixed>>
@@ -262,20 +288,55 @@ final class Tweet
         $stmt->bindValue(':limit', $limit, \PDO::PARAM_INT);
         $stmt->bindValue(':offset', ($page - 1) * $limit, \PDO::PARAM_INT);
         $stmt->execute();
-        return $stmt->fetchAll();
+        $rows = $stmt->fetchAll();
+        self::hydrateExtras($rows);
+        return $rows;
     }
 
     /**
      * Insert a tweet inside an existing transaction and perform related updates.
      */
-    private static function insertTweet(Database $db, int $userId, string $body, ?int $replyToId, ?int $retweetOfId): int
+    private static function insertTweet(Database $db, int $userId, string $body, ?int $replyToId, ?int $retweetOfId, array $metadata = []): int
     {
         $db->execute(
-            'INSERT INTO tweets (user_id, body, reply_to_id, retweet_of_id) VALUES (:user_id, :body, :reply_to_id, :retweet_of_id)',
-            ['user_id' => $userId, 'body' => $body, 'reply_to_id' => $replyToId, 'retweet_of_id' => $retweetOfId]
+            'INSERT INTO tweets (user_id, body, reply_to_id, retweet_of_id, scheduled_at, location_label, location_lat, location_lng, gif_url)
+             VALUES (:user_id, :body, :reply_to_id, :retweet_of_id, :scheduled_at, :location_label, :location_lat, :location_lng, :gif_url)',
+            [
+                'user_id' => $userId,
+                'body' => $body,
+                'reply_to_id' => $replyToId,
+                'retweet_of_id' => $retweetOfId,
+                'scheduled_at' => $metadata['scheduled_at'] ?? null,
+                'location_label' => $metadata['location_label'] ?? null,
+                'location_lat' => $metadata['location_lat'] ?? null,
+                'location_lng' => $metadata['location_lng'] ?? null,
+                'gif_url' => $metadata['gif_url'] ?? null,
+            ]
         );
         $tweetId = $db->lastInsertId();
+        $isFutureScheduled = !empty($metadata['scheduled_at']) && strtotime((string)$metadata['scheduled_at']) > time();
         $db->execute('UPDATE users SET tweet_count = tweet_count + 1 WHERE id = :id', ['id' => $userId]);
+
+        foreach (($metadata['media'] ?? []) as $media) {
+            $db->execute(
+                'INSERT INTO tweet_media (tweet_id, file_name, mime_type) VALUES (:tweet_id, :file_name, :mime_type)',
+                ['tweet_id' => $tweetId, 'file_name' => $media['file_name'], 'mime_type' => $media['mime_type']]
+            );
+        }
+        if (!empty($metadata['poll'])) {
+            $poll = $metadata['poll'];
+            $db->execute(
+                'INSERT INTO polls (tweet_id, question, closes_at) VALUES (:tweet_id, :question, :closes_at)',
+                ['tweet_id' => $tweetId, 'question' => $poll['question'], 'closes_at' => $poll['closes_at'] ?? null]
+            );
+            $pollId = $db->lastInsertId();
+            foreach ($poll['options'] as $position => $option) {
+                $db->execute(
+                    'INSERT INTO poll_options (poll_id, body, position) VALUES (:poll_id, :body, :position)',
+                    ['poll_id' => $pollId, 'body' => $option, 'position' => $position + 1]
+                );
+            }
+        }
 
         if ($replyToId !== null) {
             $parent = self::findWithUser($replyToId, true);
@@ -286,8 +347,68 @@ final class Tweet
         }
 
         self::indexHashtags($tweetId, $body);
-        self::notifyMentions($tweetId, $userId, $body);
+        if (!$isFutureScheduled) {
+            self::notifyMentions($tweetId, $userId, $body);
+        }
         return $tweetId;
+    }
+
+    /**
+     * Attach media and poll data to tweet rows with batched queries.
+     *
+     * @param array<int, array<string, mixed>> $rows
+     */
+    private static function hydrateExtras(array &$rows): void
+    {
+        if ($rows === []) {
+            return;
+        }
+
+        $ids = array_map(static fn(array $row): int => (int)$row['id'], $rows);
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $db = Database::instance();
+
+        $mediaByTweet = [];
+        foreach ($db->all("SELECT * FROM tweet_media WHERE tweet_id IN ({$placeholders}) ORDER BY id ASC", $ids) as $media) {
+            $mediaByTweet[(int)$media['tweet_id']][] = $media;
+        }
+
+        $pollsByTweet = [];
+        $polls = $db->all("SELECT * FROM polls WHERE tweet_id IN ({$placeholders})", $ids);
+        foreach ($polls as $poll) {
+            $options = $db->all(
+                'SELECT po.*, COUNT(pv.id) AS vote_count
+                 FROM poll_options po
+                 LEFT JOIN poll_votes pv ON pv.option_id = po.id
+                 WHERE po.poll_id = :poll_id
+                 GROUP BY po.id
+                 ORDER BY po.position ASC',
+                ['poll_id' => (int)$poll['id']]
+            );
+            $total = 0;
+            foreach ($options as $option) {
+                $total += (int)$option['vote_count'];
+            }
+            $poll['options'] = $options;
+            $poll['total_votes'] = $total;
+            $pollsByTweet[(int)$poll['tweet_id']] = $poll;
+        }
+
+        foreach ($rows as &$row) {
+            $id = (int)$row['id'];
+            $row['media'] = $mediaByTweet[$id] ?? [];
+            $row['poll'] = $pollsByTweet[$id] ?? null;
+        }
+    }
+
+    /**
+     * SQL condition for scheduled tweets that should be visible now.
+     */
+    private static function publishedWhere(): string
+    {
+        return Database::instance()->isMysql()
+            ? '(t.scheduled_at IS NULL OR t.scheduled_at <= NOW())'
+            : "(t.scheduled_at IS NULL OR t.scheduled_at <= datetime('now'))";
     }
 
     /**

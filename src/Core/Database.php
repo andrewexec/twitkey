@@ -282,6 +282,63 @@ final class Database
         if (!$this->columnExists('users', 'is_system')) {
             $this->pdo->exec('ALTER TABLE users ADD COLUMN is_system INTEGER DEFAULT 0');
         }
+        foreach ([
+            'scheduled_at' => 'TEXT DEFAULT NULL',
+            'location_label' => 'TEXT DEFAULT NULL',
+            'location_lat' => 'REAL DEFAULT NULL',
+            'location_lng' => 'REAL DEFAULT NULL',
+            'gif_url' => 'TEXT DEFAULT NULL',
+        ] as $column => $definition) {
+            if (!$this->columnExists('tweets', $column)) {
+                $this->pdo->exec('ALTER TABLE tweets ADD COLUMN ' . $column . ' ' . $definition);
+            }
+        }
+        $this->ensureFeatureTables();
+    }
+
+    /**
+     * Ensure feature tables added after first release exist.
+     */
+    private function ensureFeatureTables(): void
+    {
+        $statements = [
+            'CREATE TABLE IF NOT EXISTS tweet_media (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tweet_id INTEGER NOT NULL REFERENCES tweets(id) ON DELETE CASCADE,
+                file_name TEXT NOT NULL,
+                mime_type TEXT NOT NULL,
+                created_at TEXT DEFAULT (datetime(\'now\'))
+            )',
+            'CREATE TABLE IF NOT EXISTS polls (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tweet_id INTEGER NOT NULL UNIQUE REFERENCES tweets(id) ON DELETE CASCADE,
+                question TEXT NOT NULL,
+                closes_at TEXT DEFAULT NULL,
+                created_at TEXT DEFAULT (datetime(\'now\'))
+            )',
+            'CREATE TABLE IF NOT EXISTS poll_options (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                poll_id INTEGER NOT NULL REFERENCES polls(id) ON DELETE CASCADE,
+                body TEXT NOT NULL,
+                position INTEGER NOT NULL
+            )',
+            'CREATE TABLE IF NOT EXISTS poll_votes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                poll_id INTEGER NOT NULL REFERENCES polls(id) ON DELETE CASCADE,
+                option_id INTEGER NOT NULL REFERENCES poll_options(id) ON DELETE CASCADE,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                created_at TEXT DEFAULT (datetime(\'now\')),
+                UNIQUE(poll_id, user_id)
+            )',
+            'CREATE INDEX IF NOT EXISTS idx_tweets_scheduled_at ON tweets(scheduled_at)',
+            'CREATE INDEX IF NOT EXISTS idx_tweet_media_tweet_id ON tweet_media(tweet_id)',
+            'CREATE INDEX IF NOT EXISTS idx_poll_options_poll_id ON poll_options(poll_id)',
+            'CREATE INDEX IF NOT EXISTS idx_poll_votes_poll_id ON poll_votes(poll_id)',
+        ];
+
+        foreach ($statements as $statement) {
+            $this->pdo->exec($this->isMysql() ? $this->mysqlSchema($statement) : $statement);
+        }
     }
 
     /**

@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Twitkey\Controllers;
 
 use Twitkey\Core\Auth;
+use Twitkey\Core\Database;
 use Twitkey\Core\Helpers;
 use Twitkey\Core\Session;
 use Twitkey\Models\CommunityNote;
@@ -19,14 +20,18 @@ final class TweetController
         Helpers::verifyCsrf();
         $user = Auth::requireActiveUser();
         $this->rateLimit((int)$user['id']);
+        $media = [];
         try {
-            $tweet = Tweet::create((int)$user['id'], (string)($_POST['body'] ?? ''));
+            $media = $this->handleTweetMediaUploads();
+            $metadata = $this->tweetMetadata($media);
+            $tweet = Tweet::create((int)$user['id'], (string)($_POST['body'] ?? ''), null, null, $metadata);
             if (Helpers::wantsJson()) {
                 $html = Helpers::renderPartial('partials/tweet_row', ['tweet' => $tweet, 'currentUser' => $user]);
-                Helpers::json(['ok' => true, 'html' => $html]);
+                Helpers::json(['ok' => true, 'html' => $html, 'scheduled' => !empty($metadata['scheduled_at']) && strtotime((string)$metadata['scheduled_at']) > time()]);
             }
             Helpers::redirect('/');
         } catch (\Throwable $e) {
+            $this->deleteStoredMedia($media);
             $this->fail($e->getMessage(), '/');
         }
     }
@@ -43,12 +48,14 @@ final class TweetController
             Helpers::render('errors/404', ['title' => 'Tweet Not Found'], true);
             return;
         }
-        if ((int)$tweet['is_deleted'] === 1 && !Auth::isAdmin()) {
+        $currentUser = Auth::user();
+        $scheduledForFuture = !empty($tweet['scheduled_at']) && strtotime((string)$tweet['scheduled_at']) > time();
+        $canSeeScheduled = $currentUser && ((int)$currentUser['id'] === (int)$tweet['user_id'] || Auth::isAdmin());
+        if (((int)$tweet['is_deleted'] === 1 && !Auth::isAdmin()) || ($scheduledForFuture && !$canSeeScheduled)) {
             http_response_code(404);
             Helpers::render('errors/404', ['title' => 'Tweet Not Found'], true);
             return;
         }
-        $currentUser = Auth::user();
         $note = CommunityNote::approvedForTweet((int)$tweet['id']);
         Helpers::render('tweet/show', [
             'title' => 'Tweet by @' . $tweet['username'],
@@ -113,6 +120,26 @@ final class TweetController
             Helpers::redirect($_SERVER['HTTP_REFERER'] ?? '/');
         } catch (\Throwable $e) {
             $this->fail($e->getMessage(), $_SERVER['HTTP_REFERER'] ?? '/');
+        }
+    }
+
+    /**
+     * Vote on a tweet poll.
+     */
+    public function votePoll(string $id, string $option_id): void
+    {
+        Helpers::verifyCsrf();
+        $user = Auth::requireActiveUser();
+        try {
+            Tweet::votePoll((int)$id, (int)$option_id, (int)$user['id']);
+            if (Helpers::wantsJson()) {
+                $tweet = Tweet::findWithUser((int)$id, true);
+                $html = $tweet ? Helpers::renderPartial('partials/tweet_row', ['tweet' => $tweet, 'currentUser' => $user]) : '';
+                Helpers::json(['ok' => true, 'html' => $html]);
+            }
+            Helpers::redirect($_SERVER['HTTP_REFERER'] ?? '/tweet/' . (int)$id);
+        } catch (\Throwable $e) {
+            $this->fail($e->getMessage(), $_SERVER['HTTP_REFERER'] ?? '/tweet/' . (int)$id);
         }
     }
 
@@ -220,6 +247,143 @@ final class TweetController
         }
         $times[] = $now;
         $_SESSION[$key] = $times;
+    }
+
+    /**
+     * Build optional tweet metadata from the compose form.
+     *
+     * @param array<int, array{file_name:string,mime_type:string}> $media
+     * @return array<string, mixed>
+     */
+    private function tweetMetadata(array $media): array
+    {
+        $metadata = ['media' => $media];
+
+        $gifUrl = trim((string)($_POST['gif_url'] ?? ''));
+        if ($gifUrl !== '') {
+            $parts = parse_url($gifUrl);
+            if (!filter_var($gifUrl, FILTER_VALIDATE_URL) || strtolower((string)($parts['scheme'] ?? '')) !== 'https') {
+                throw new \InvalidArgumentException('GIF URL must be a valid HTTPS URL.');
+            }
+            $metadata['gif_url'] = $gifUrl;
+        }
+
+        $lat = trim((string)($_POST['location_lat'] ?? ''));
+        $lng = trim((string)($_POST['location_lng'] ?? ''));
+        $label = trim((string)($_POST['location_label'] ?? ''));
+        if ($lat !== '' || $lng !== '' || $label !== '') {
+            if (!is_numeric($lat) || !is_numeric($lng)) {
+                throw new \InvalidArgumentException('Location requires a valid latitude and longitude.');
+            }
+            $latitude = (float)$lat;
+            $longitude = (float)$lng;
+            if ($latitude < -90 || $latitude > 90 || $longitude < -180 || $longitude > 180) {
+                throw new \InvalidArgumentException('Location is outside valid coordinates.');
+            }
+            $metadata['location_lat'] = $latitude;
+            $metadata['location_lng'] = $longitude;
+            $metadata['location_label'] = substr($label !== '' ? $label : sprintf('%.5f, %.5f', $latitude, $longitude), 0, 160);
+        }
+
+        $scheduled = trim((string)($_POST['scheduled_at'] ?? ''));
+        if ($scheduled !== '') {
+            $time = strtotime($scheduled);
+            if ($time === false) {
+                throw new \InvalidArgumentException('Scheduled time is invalid.');
+            }
+            if ($time < time() - 60) {
+                throw new \InvalidArgumentException('Scheduled time must be in the future.');
+            }
+            $metadata['scheduled_at'] = date('Y-m-d H:i:s', $time);
+        }
+
+        $question = trim((string)($_POST['poll_question'] ?? ''));
+        $options = [];
+        foreach ((array)($_POST['poll_options'] ?? []) as $option) {
+            $option = trim((string)$option);
+            if ($option !== '') {
+                $options[] = substr($option, 0, 80);
+            }
+        }
+        if ($question !== '' || $options !== []) {
+            if ($question === '' || count($options) < 2 || count($options) > 4) {
+                throw new \InvalidArgumentException('Polls require a question and 2-4 options.');
+            }
+            $pollStart = !empty($metadata['scheduled_at']) ? strtotime((string)$metadata['scheduled_at']) : time();
+            $metadata['poll'] = [
+                'question' => substr($question, 0, 120),
+                'options' => $options,
+                'closes_at' => date('Y-m-d H:i:s', ($pollStart ?: time()) + 86400),
+            ];
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * Validate and store tweet attachment uploads.
+     *
+     * @return array<int, array{file_name:string,mime_type:string}>
+     */
+    private function handleTweetMediaUploads(): array
+    {
+        if (empty($_FILES['attachments']['name']) || !is_array($_FILES['attachments']['name'])) {
+            return [];
+        }
+
+        $stored = [];
+        $maxBytes = (int)Helpers::env('MAX_ATTACHMENT_SIZE_KB', '5120') * 1024;
+        $allowed = [
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/gif' => 'gif',
+            'image/webp' => 'webp',
+        ];
+
+        foreach ($_FILES['attachments']['name'] as $index => $_name) {
+            $error = (int)($_FILES['attachments']['error'][$index] ?? UPLOAD_ERR_NO_FILE);
+            if ($error === UPLOAD_ERR_NO_FILE) {
+                continue;
+            }
+            if (count($stored) >= 4) {
+                throw new \RuntimeException('Tweets can include at most 4 attachments.');
+            }
+            if ($error !== UPLOAD_ERR_OK) {
+                throw new \RuntimeException('Attachment upload failed.');
+            }
+            if ((int)$_FILES['attachments']['size'][$index] > $maxBytes) {
+                throw new \RuntimeException('Attachment is too large.');
+            }
+            $tmp = (string)$_FILES['attachments']['tmp_name'][$index];
+            $info = getimagesize($tmp);
+            if ($info === false || !isset($allowed[$info['mime']])) {
+                throw new \RuntimeException('Attachments must be real JPEG, PNG, GIF, or WebP images.');
+            }
+            $filename = 'tweet_' . hash('sha256', microtime(true) . ':' . random_bytes(16) . ':' . $index) . '.' . $allowed[$info['mime']];
+            $path = Database::instance()->dataDir() . '/uploads/' . $filename;
+            if (!move_uploaded_file($tmp, $path)) {
+                throw new \RuntimeException('Attachment could not be saved.');
+            }
+            $stored[] = ['file_name' => $filename, 'mime_type' => $info['mime']];
+        }
+
+        return $stored;
+    }
+
+    /**
+     * Delete stored media after a failed tweet create.
+     *
+     * @param array<int, array{file_name:string,mime_type:string}> $media
+     */
+    private function deleteStoredMedia(array $media): void
+    {
+        $dir = Database::instance()->dataDir() . '/uploads/';
+        foreach ($media as $item) {
+            $path = $dir . $item['file_name'];
+            if (is_file($path)) {
+                unlink($path);
+            }
+        }
     }
 
     /**

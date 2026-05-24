@@ -64,6 +64,7 @@ final class Router
     {
         $quoted = preg_quote(rtrim($pattern, '/') ?: '/', '#');
         $quoted = str_replace('\{id\}', '(?P<id>\d+)', $quoted);
+        $quoted = str_replace('\{option_id\}', '(?P<option_id>\d+)', $quoted);
         $quoted = str_replace('\{username\}', '(?P<username>@?[A-Za-z0-9_]{1,15})', $quoted);
         $quoted = str_replace('\{user\}', '(?P<user>@?[A-Za-z0-9_]{1,15})', $quoted);
         $quoted = str_replace('\{file\}', '(?P<file>[A-Za-z0-9_.-]+)', $quoted);

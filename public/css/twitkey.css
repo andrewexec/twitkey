@@ -133,7 +133,7 @@ select {
 
 .subheader {
     background: var(--bg-header);
-    min-height: 90px;
+    min-height: 104px;
     color: #fff;
 }
 
@@ -159,7 +159,7 @@ select {
 .compose-form {
     display: grid;
     grid-template-columns: 1fr;
-    width: 370px;
+    width: 520px;
 }
 
 .compose-form label {
@@ -188,6 +188,170 @@ select {
     padding-top: 4px;
 }
 
+.compose-tools {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    width: 500px;
+    margin: 4px 0 0;
+}
+
+.compose-tools button {
+    background: #e8f5fd;
+    border: 1px solid #0e5fa5;
+    color: #04538a;
+    cursor: pointer;
+    font-size: 11px;
+    padding: 2px 5px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.compose-tools button:hover,
+.compose-tools button.active {
+    background: #fff;
+}
+
+.compose-tools img {
+    width: 14px;
+    height: 14px;
+}
+
+.hidden-file {
+    display: none;
+}
+
+.compose-panel {
+    display: none;
+    width: 500px;
+    background: #f7fbfe;
+    border: 1px solid #0e5fa5;
+    padding: 6px;
+    margin-top: 5px;
+    color: #333;
+}
+
+.compose-panel.open {
+    display: block;
+}
+
+.compose-panel input {
+    width: 100%;
+    border: 1px solid var(--border-input);
+    padding: 4px 5px;
+    margin: 2px 0;
+}
+
+.tool-search {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 4px;
+    align-items: center;
+}
+
+.tool-search button,
+.compose-panel button {
+    background: var(--btn-secondary-bg);
+    border: 1px solid var(--btn-secondary-border);
+    color: #333;
+    cursor: pointer;
+    font-size: 11px;
+    padding: 3px 7px;
+}
+
+.gif-results {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+    margin: 6px 0;
+    min-height: 0;
+}
+
+.gif-results button {
+    padding: 0;
+    border: 2px solid transparent;
+    background: #fff;
+    height: 58px;
+    overflow: hidden;
+}
+
+.gif-results button.selected {
+    border-color: var(--text-link);
+}
+
+.gif-results img {
+    width: 100%;
+    height: 58px;
+    object-fit: cover;
+    display: block;
+}
+
+.location-results {
+    max-height: 96px;
+    overflow-y: auto;
+    margin: 5px 0;
+}
+
+.location-results button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    margin-bottom: 3px;
+}
+
+.map-picker {
+    height: 116px;
+    border: 1px solid var(--border-dark);
+    background:
+        linear-gradient(90deg, rgba(0,132,180,.18) 1px, transparent 1px),
+        linear-gradient(rgba(0,132,180,.18) 1px, transparent 1px),
+        #d9eefb;
+    background-size: 32px 32px;
+    position: relative;
+    overflow: hidden;
+    cursor: crosshair;
+}
+
+.map-picker::before {
+    content: "map";
+    position: absolute;
+    right: 6px;
+    bottom: 4px;
+    color: #5288a8;
+    font-size: 10px;
+}
+
+.map-pin {
+    display: none;
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    transform: translate(-50%, -100%);
+    background: var(--badge-admin);
+    border-radius: 50% 50% 50% 0;
+    rotate: -45deg;
+    box-shadow: 0 1px 2px rgba(0,0,0,.35);
+}
+
+.map-pin::after {
+    content: "";
+    position: absolute;
+    width: 5px;
+    height: 5px;
+    left: 4px;
+    top: 4px;
+    background: #fff;
+    border-radius: 50%;
+}
+
+.selected-location,
+.tool-hint {
+    color: #777;
+    font-size: 11px;
+    margin-top: 4px;
+}
+
 .char-counter {
     color: #d9eefb;
     font-size: 12px;
@@ -198,7 +362,7 @@ select {
     color: #ffcccc;
 }
 
-.compose-form button,
+.compose-bottom button,
 .primary-button {
     background: var(--btn-primary-bg);
     border: 1px solid #0e5fa5;
@@ -208,14 +372,14 @@ select {
     padding: 3px 8px;
 }
 
-.compose-form button:hover,
+.compose-bottom button:hover,
 .primary-button:hover {
     background: var(--btn-primary-bg-hover);
     color: #fff;
     text-decoration: none;
 }
 
-.compose-form button:disabled,
+.compose-bottom button:disabled,
 .primary-button:disabled {
     opacity: .55;
     cursor: default;
@@ -510,6 +674,131 @@ select {
     display: inline-block;
     margin-left: 5px;
     color: #8a6d00;
+}
+
+.tweet-gif,
+.tweet-media {
+    margin-top: 6px;
+}
+
+.tweet-gif img,
+.tweet-media img {
+    display: block;
+    max-width: 100%;
+    border: 1px solid #d8e6ef;
+    border-radius: 3px;
+    background: #f7fbfe;
+}
+
+.tweet-gif img {
+    max-height: 260px;
+    object-fit: contain;
+}
+
+.tweet-media {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+    max-width: 428px;
+}
+
+.tweet-media.media-count-1 {
+    display: block;
+}
+
+.tweet-media.media-count-1 img {
+    max-height: 320px;
+    object-fit: contain;
+}
+
+.tweet-media:not(.media-count-1) img {
+    width: 100%;
+    height: 138px;
+    object-fit: cover;
+}
+
+.tweet-poll {
+    max-width: 428px;
+    margin-top: 7px;
+    padding: 7px;
+    border: 1px solid #d8e6ef;
+    background: #f7fbfe;
+    border-radius: 3px;
+}
+
+.poll-question {
+    color: #333;
+    font-size: 13px;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.poll-option-form {
+    margin: 0 0 4px;
+}
+
+.poll-option {
+    width: 100%;
+    min-height: 28px;
+    border: 1px solid var(--border-input);
+    background: #fff;
+    color: #333;
+    cursor: pointer;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+    padding: 5px 7px;
+    text-align: left;
+}
+
+.poll-option:hover {
+    border-color: var(--text-link);
+}
+
+.poll-option:disabled {
+    cursor: default;
+    color: #777;
+}
+
+.poll-fill {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    background: #dff1fb;
+    z-index: 0;
+}
+
+.poll-text,
+.poll-percent {
+    position: relative;
+    z-index: 1;
+}
+
+.poll-percent {
+    color: #777;
+    font-size: 11px;
+}
+
+.poll-meta,
+.tweet-location {
+    color: #777;
+    font-size: 11px;
+}
+
+.tweet-location {
+    margin-top: 5px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.tweet-location img {
+    width: 13px;
+    height: 13px;
 }
 
 .inline-reply {
@@ -1221,8 +1510,15 @@ select {
 
     .compose-form,
     .compose-form textarea,
-    .compose-bottom {
+    .compose-bottom,
+    .compose-tools,
+    .compose-panel {
         width: min(360px, calc(100vw - 88px));
+    }
+
+    .tweet-media,
+    .tweet-poll {
+        max-width: 100%;
     }
 
     .header-search {

@@ -54,6 +54,7 @@ $router->add('GET', '/tweet/{id}', [TweetController::class, 'show']);
 $router->add('POST', '/tweet/{id}/reply', [TweetController::class, 'reply']);
 $router->add('POST', '/tweet/{id}/retweet', [TweetController::class, 'retweet']);
 $router->add('POST', '/tweet/{id}/favorite', [TweetController::class, 'favorite']);
+$router->add('POST', '/tweet/{id}/poll/{option_id}', [TweetController::class, 'votePoll']);
 $router->add('DELETE', '/tweet/{id}', [TweetController::class, 'delete']);
 $router->add('POST', '/follow/{username}', [UserController::class, 'follow']);
 $router->add('GET', '/replies', [NotificationsController::class, 'replies']);
@@ -74,6 +75,8 @@ $router->add('POST', '/admin/notes/{id}/action', [AdminController::class, 'noteA
 $router->add('GET', '/admin/setup', [AdminController::class, 'setup']);
 $router->add('GET', '/api/username', [ApiController::class, 'username']);
 $router->add('GET', '/api/suggest', [ApiController::class, 'suggest']);
+$router->add('GET', '/api/gifs', [ApiController::class, 'gifs']);
+$router->add('GET', '/api/locations', [ApiController::class, 'locations']);
 $router->add('GET', '/media/{file}', [ApiController::class, 'media']);
 $router->add('GET', '/{username}/followers', [UserController::class, 'followers']);
 $router->add('GET', '/{username}/following', [UserController::class, 'following']);

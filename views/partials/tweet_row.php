@@ -25,9 +25,49 @@ $favorited = $currentUser ? Tweet::isFavorited((int)$currentUser['id'], $tweetId
             <span class="tweet-body deleted-text">[Tweet deleted]</span>
         <?php else: ?>
             <strong><?= Helpers::renderUserName($author) ?></strong>
-            <span class="tweet-body"><?= Helpers::renderTweetBody((string)$tweet['body']) ?></span>
+            <?php if ((string)$tweet['body'] !== ''): ?>
+                <span class="tweet-body"><?= Helpers::renderTweetBody((string)$tweet['body']) ?></span>
+            <?php endif; ?>
             <?php if (!empty($tweet['approved_note_body'])): ?>
                 <a class="note-preview" href="/tweet/<?= $tweetId ?>" title="<?= Helpers::h(Helpers::truncate((string)$tweet['approved_note_body'], 120)) ?>">📋</a>
+            <?php endif; ?>
+            <?php if (!empty($tweet['gif_url'])): ?>
+                <div class="tweet-gif"><img src="<?= Helpers::h($tweet['gif_url']) ?>" alt="GIF attachment" loading="lazy"></div>
+            <?php endif; ?>
+            <?php if (!empty($tweet['media'])): ?>
+                <div class="tweet-media media-count-<?= count($tweet['media']) ?>">
+                    <?php foreach ($tweet['media'] as $media): ?>
+                        <a href="/media/<?= rawurlencode((string)$media['file_name']) ?>" target="_blank" rel="noopener">
+                            <img src="/media/<?= rawurlencode((string)$media['file_name']) ?>" alt="Tweet attachment" loading="lazy">
+                        </a>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+            <?php if (!empty($tweet['poll'])): ?>
+                <?php $poll = $tweet['poll']; $totalVotes = max(0, (int)$poll['total_votes']); ?>
+                <div class="tweet-poll">
+                    <div class="poll-question"><?= Helpers::h($poll['question']) ?></div>
+                    <?php foreach ($poll['options'] as $option): ?>
+                        <?php $votes = (int)$option['vote_count']; $percent = $totalVotes > 0 ? (int)round(($votes / $totalVotes) * 100) : 0; ?>
+                        <form action="/tweet/<?= $tweetId ?>/poll/<?= (int)$option['id'] ?>" method="post" class="poll-option-form" data-poll-form>
+                            <?= Helpers::csrfField() ?>
+                            <button type="submit" class="poll-option"<?= !$currentUser ? ' disabled' : '' ?>>
+                                <span class="poll-fill" style="width: <?= $percent ?>%"></span>
+                                <span class="poll-text"><?= Helpers::h($option['body']) ?></span>
+                                <span class="poll-percent"><?= $percent ?>%</span>
+                            </button>
+                        </form>
+                    <?php endforeach; ?>
+                    <div class="poll-meta"><?= number_format($totalVotes) ?> vote<?= $totalVotes === 1 ? '' : 's' ?></div>
+                </div>
+            <?php endif; ?>
+            <?php if (!empty($tweet['location_label']) && $tweet['location_lat'] !== null && $tweet['location_lng'] !== null): ?>
+                <div class="tweet-location">
+                    <img src="/img/icon_location.svg" alt="">
+                    <a href="https://www.openstreetmap.org/?mlat=<?= rawurlencode((string)$tweet['location_lat']) ?>&mlon=<?= rawurlencode((string)$tweet['location_lng']) ?>#map=12/<?= rawurlencode((string)$tweet['location_lat']) ?>/<?= rawurlencode((string)$tweet['location_lng']) ?>" target="_blank" rel="noopener">
+                        <?= Helpers::h($tweet['location_label']) ?>
+                    </a>
+                </div>
             <?php endif; ?>
         <?php endif; ?>
 

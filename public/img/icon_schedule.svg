@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" role="img" aria-label="Schedule">
+  <circle cx="10" cy="10" r="8" fill="#e8f5fd" stroke="#0084b4" stroke-width="2"/>
+  <path fill="none" stroke="#04538a" stroke-width="2" stroke-linecap="round" d="M10 5v5l4 2"/>
+</svg>

@@ -21,7 +21,7 @@ $notificationsLabel = $unread > 0 ? '(' . ($unread > 99 ? '99+' : (string)$unrea
     <div class="topbar-inner">
         <a class="brand" href="/">
             <span class="brand-word">twitkey</span>
-            <img src="/img/logo.png" alt="" class="brand-bird">
+            <img src="/img/logo.svg" alt="" class="brand-bird">
         </a>
         <div class="topnav">
             <?php if ($currentUser): ?>
@@ -49,10 +49,53 @@ $notificationsLabel = $unread > 0 ? '(' . ($unread > 99 ? '99+' : (string)$unrea
     <div class="subheader-inner">
         <?php if ($currentUser): ?>
             <img src="<?= Helpers::avatarUrl($currentUser) ?>" class="compose-avatar" alt="">
-            <form action="/tweet" method="post" class="compose-form" data-tweet-form>
+            <form action="/tweet" method="post" enctype="multipart/form-data" class="compose-form" data-tweet-form>
                 <?= Helpers::csrfField() ?>
                 <label for="compose-body">What are you doing?</label>
                 <textarea id="compose-body" name="body" maxlength="140" data-counter-target="#compose-count"></textarea>
+                <div class="compose-tools">
+                    <button type="button" title="Attach images" data-attachment-button><img src="/img/icon_attachment.svg" alt="">Attachment</button>
+                    <button type="button" title="Add GIF" data-panel-toggle="gif-panel"><img src="/img/icon_gif.svg" alt="">GIF</button>
+                    <button type="button" title="Add poll" data-panel-toggle="poll-panel"><img src="/img/icon_poll.svg" alt="">Poll</button>
+                    <button type="button" title="Add location" data-panel-toggle="location-panel"><img src="/img/icon_location.svg" alt="">Location</button>
+                    <button type="button" title="Schedule post" data-panel-toggle="schedule-panel"><img src="/img/icon_schedule.svg" alt="">Schedule</button>
+                </div>
+                <input type="file" name="attachments[]" accept="image/jpeg,image/png,image/gif,image/webp" multiple class="hidden-file" data-attachment-input>
+                <input type="hidden" name="gif_url" data-gif-url>
+                <input type="hidden" name="location_lat" data-location-lat>
+                <input type="hidden" name="location_lng" data-location-lng>
+                <input type="hidden" name="location_label" data-location-label>
+                <div class="compose-panel" data-compose-panel="gif-panel">
+                    <div class="tool-search">
+                        <input type="text" placeholder="Search GIFs" data-gif-query>
+                        <button type="button" data-gif-search>Search</button>
+                    </div>
+                    <div class="gif-results" data-gif-results></div>
+                    <input type="url" placeholder="or paste HTTPS GIF URL" data-gif-paste>
+                </div>
+                <div class="compose-panel" data-compose-panel="poll-panel">
+                    <input type="text" name="poll_question" maxlength="120" placeholder="Poll question">
+                    <input type="text" name="poll_options[]" maxlength="80" placeholder="Option 1">
+                    <input type="text" name="poll_options[]" maxlength="80" placeholder="Option 2">
+                    <input type="text" name="poll_options[]" maxlength="80" placeholder="Option 3 optional">
+                    <input type="text" name="poll_options[]" maxlength="80" placeholder="Option 4 optional">
+                </div>
+                <div class="compose-panel" data-compose-panel="location-panel">
+                    <div class="tool-search">
+                        <input type="text" placeholder="Search a place" data-location-query>
+                        <button type="button" data-location-search>Search</button>
+                    </div>
+                    <div class="location-results" data-location-results></div>
+                    <div class="map-picker" data-map-picker title="Click to drop a pin">
+                        <span class="map-pin" data-map-pin></span>
+                    </div>
+                    <div class="selected-location" data-selected-location>No location selected.</div>
+                    <div class="tool-hint">Search data by <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>.</div>
+                </div>
+                <div class="compose-panel" data-compose-panel="schedule-panel">
+                    <input type="datetime-local" name="scheduled_at">
+                    <div class="tool-hint">Scheduled posts appear in timelines when this time is reached.</div>
+                </div>
                 <div class="compose-bottom">
                     <span id="compose-count" class="char-counter">140</span>
                     <button type="submit">update</button>

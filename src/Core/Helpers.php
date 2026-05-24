@@ -364,13 +364,14 @@ final class Helpers
         }
 
         $cutoffSql = $db->isMysql() ? 'DATE_SUB(NOW(), INTERVAL 1 DAY)' : "datetime('now', '-1 day')";
+        $publishedSql = $db->isMysql() ? '(t.scheduled_at IS NULL OR t.scheduled_at <= NOW())' : "(t.scheduled_at IS NULL OR t.scheduled_at <= datetime('now'))";
         $rows = $db->all(
             "SELECT h.tag, COUNT(*) AS count
              FROM hashtags h
              JOIN tweet_hashtags th ON th.hashtag_id = h.id
              JOIN tweets t ON t.id = th.tweet_id
              JOIN users u ON u.id = t.user_id
-             WHERE t.created_at >= {$cutoffSql} AND t.is_deleted = 0 AND u.is_suspended = 0
+             WHERE t.created_at >= {$cutoffSql} AND {$publishedSql} AND t.is_deleted = 0 AND u.is_suspended = 0
              GROUP BY h.id, h.tag
              ORDER BY count DESC, h.tag ASC
              LIMIT 10"

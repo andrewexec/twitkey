@@ -34,7 +34,44 @@ CREATE TABLE IF NOT EXISTS tweets (
     retweet_count   INTEGER DEFAULT 0,
     reply_count     INTEGER DEFAULT 0,
     is_deleted   INTEGER DEFAULT 0,
+    scheduled_at TEXT DEFAULT NULL,
+    location_label TEXT DEFAULT NULL,
+    location_lat REAL DEFAULT NULL,
+    location_lng REAL DEFAULT NULL,
+    gif_url TEXT DEFAULT NULL,
     created_at   TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS tweet_media (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    tweet_id   INTEGER NOT NULL REFERENCES tweets(id) ON DELETE CASCADE,
+    file_name  TEXT NOT NULL,
+    mime_type  TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS polls (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    tweet_id   INTEGER NOT NULL UNIQUE REFERENCES tweets(id) ON DELETE CASCADE,
+    question   TEXT NOT NULL,
+    closes_at  TEXT DEFAULT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS poll_options (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    poll_id  INTEGER NOT NULL REFERENCES polls(id) ON DELETE CASCADE,
+    body     TEXT NOT NULL,
+    position INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS poll_votes (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    poll_id    INTEGER NOT NULL REFERENCES polls(id) ON DELETE CASCADE,
+    option_id  INTEGER NOT NULL REFERENCES poll_options(id) ON DELETE CASCADE,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(poll_id, user_id)
 );
 
 -- FOLLOWS
@@ -152,6 +189,7 @@ CREATE TABLE IF NOT EXISTS admin_log (
 
 CREATE INDEX IF NOT EXISTS idx_tweets_user_id ON tweets(user_id);
 CREATE INDEX IF NOT EXISTS idx_tweets_created_at ON tweets(created_at);
+CREATE INDEX IF NOT EXISTS idx_tweets_scheduled_at ON tweets(scheduled_at);
 CREATE INDEX IF NOT EXISTS idx_tweets_reply_to_id ON tweets(reply_to_id);
 CREATE INDEX IF NOT EXISTS idx_follows_follower_id ON follows(follower_id);
 CREATE INDEX IF NOT EXISTS idx_follows_following_id ON follows(following_id);
@@ -161,3 +199,6 @@ CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
 CREATE INDEX IF NOT EXISTS idx_favorites_user_id ON favorites(user_id);
 CREATE INDEX IF NOT EXISTS idx_direct_messages_pair ON direct_messages(sender_id, recipient_id);
 CREATE INDEX IF NOT EXISTS idx_community_notes_status ON community_notes(status);
+CREATE INDEX IF NOT EXISTS idx_tweet_media_tweet_id ON tweet_media(tweet_id);
+CREATE INDEX IF NOT EXISTS idx_poll_options_poll_id ON poll_options(poll_id);
+CREATE INDEX IF NOT EXISTS idx_poll_votes_poll_id ON poll_votes(poll_id);

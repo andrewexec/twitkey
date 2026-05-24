@@ -27,7 +27,7 @@
                 target.classList.toggle('danger', remaining <= 20);
             }
             if (button) {
-                button.disabled = remaining < 0 || textarea.value.trim().length === 0;
+                button.disabled = remaining < 0;
             }
         };
         textarea.addEventListener('input', update);
@@ -35,6 +35,34 @@
     };
 
     document.querySelectorAll('textarea[data-counter-target]').forEach(setupCounter);
+
+    const resetComposeExtras = (form) => {
+        form.querySelectorAll('[data-compose-panel]').forEach((panel) => panel.classList.remove('open'));
+        form.querySelectorAll('[data-panel-toggle]').forEach((button) => {
+            button.classList.remove('active');
+            if (button.dataset.defaultLabel) {
+                button.lastChild.textContent = button.dataset.defaultLabel;
+            }
+        });
+        const attachmentButton = form.querySelector('[data-attachment-button]');
+        if (attachmentButton?.dataset.defaultLabel) {
+            attachmentButton.lastChild.textContent = attachmentButton.dataset.defaultLabel;
+        }
+        form.querySelectorAll('[data-gif-results], [data-location-results]').forEach((target) => {
+            target.textContent = '';
+        });
+        form.querySelectorAll('[data-gif-url], [data-location-lat], [data-location-lng], [data-location-label]').forEach((input) => {
+            input.value = '';
+        });
+        const selectedLocation = form.querySelector('[data-selected-location]');
+        if (selectedLocation) {
+            selectedLocation.textContent = 'No location selected.';
+        }
+        const pin = form.querySelector('[data-map-pin]');
+        if (pin) {
+            pin.style.display = 'none';
+        }
+    };
 
     document.querySelectorAll('[data-tweet-form]').forEach((form) => {
         form.addEventListener('submit', async (event) => {
@@ -47,11 +75,14 @@
             try {
                 const data = await jsonFetch(form.action, { method: 'POST', body: new FormData(form) });
                 const timeline = document.querySelector('#timeline');
-                if (timeline && data.html) {
+                if (data.scheduled) {
+                    alert('Post scheduled. It will appear when the selected time arrives.');
+                } else if (timeline && data.html) {
                     timeline.insertAdjacentHTML('afterbegin', data.html);
                     wireDynamic(timeline.firstElementChild);
                 }
                 form.reset();
+                resetComposeExtras(form);
                 form.querySelectorAll('textarea[data-counter-target]').forEach((textarea) => textarea.dispatchEvent(new Event('input')));
             } catch (error) {
                 alert(error.message);
@@ -60,6 +91,33 @@
             }
         });
     });
+
+    const wirePoll = (root = document) => {
+        root.querySelectorAll('[data-poll-form]').forEach((form) => {
+            if (form.dataset.bound) {
+                return;
+            }
+            form.dataset.bound = '1';
+            form.addEventListener('submit', async (event) => {
+                if (!window.fetch) {
+                    return;
+                }
+                event.preventDefault();
+                const row = form.closest('.tweet-row');
+                const rowId = row?.id || '';
+                try {
+                    const data = await jsonFetch(form.action, { method: 'POST', body: new FormData(form) });
+                    if (row && data.html) {
+                        row.outerHTML = data.html;
+                        const replacement = rowId ? document.getElementById(rowId) : null;
+                        wireDynamic(replacement || document);
+                    }
+                } catch (error) {
+                    alert(error.message);
+                }
+            });
+        });
+    };
 
     const wireFollow = (root = document) => {
         root.querySelectorAll('[data-follow-form]').forEach((form) => {
@@ -247,9 +305,162 @@
         wireReply(root);
         wireDelete(root);
         wireConfirm(root);
+        wirePoll(root);
     };
 
     wireDynamic(document);
+
+    document.querySelectorAll('[data-panel-toggle]').forEach((button) => {
+        button.dataset.defaultLabel = button.lastChild.textContent;
+        button.addEventListener('click', () => {
+            const form = button.closest('form');
+            const name = button.dataset.panelToggle;
+            const panel = form?.querySelector(`[data-compose-panel="${name}"]`);
+            if (!form || !panel) {
+                return;
+            }
+            const open = !panel.classList.contains('open');
+            form.querySelectorAll('[data-compose-panel]').forEach((item) => item.classList.remove('open'));
+            form.querySelectorAll('[data-panel-toggle]').forEach((toggle) => toggle.classList.remove('active'));
+            panel.classList.toggle('open', open);
+            button.classList.toggle('active', open);
+        });
+    });
+
+    document.querySelectorAll('[data-attachment-button]').forEach((button) => {
+        button.dataset.defaultLabel = button.lastChild.textContent;
+        button.addEventListener('click', () => {
+            button.closest('form')?.querySelector('[data-attachment-input]')?.click();
+        });
+    });
+
+    document.querySelectorAll('[data-attachment-input]').forEach((input) => {
+        input.addEventListener('change', () => {
+            const button = input.closest('form')?.querySelector('[data-attachment-button]');
+            if (!button) {
+                return;
+            }
+            const count = input.files ? input.files.length : 0;
+            button.lastChild.textContent = count > 0 ? `${count} file${count === 1 ? '' : 's'}` : (button.dataset.defaultLabel || 'Attachment');
+        });
+    });
+
+    document.querySelectorAll('[data-gif-search]').forEach((button) => {
+        button.addEventListener('click', async () => {
+            const form = button.closest('form');
+            const input = form?.querySelector('[data-gif-query]');
+            const results = form?.querySelector('[data-gif-results]');
+            const hidden = form?.querySelector('[data-gif-url]');
+            const query = input?.value.trim() || '';
+            if (!form || !input || !results || !hidden || query === '') {
+                return;
+            }
+            results.textContent = 'Searching...';
+            try {
+                const data = await jsonFetch(`/api/gifs?q=${encodeURIComponent(query)}`);
+                results.textContent = '';
+                if (!data.items || data.items.length === 0) {
+                    results.textContent = 'No GIFs found.';
+                    return;
+                }
+                data.items.forEach((item) => {
+                    const option = document.createElement('button');
+                    option.type = 'button';
+                    option.title = item.title || 'GIF';
+                    const image = document.createElement('img');
+                    image.src = item.url;
+                    image.alt = item.title || 'GIF';
+                    option.appendChild(image);
+                    option.addEventListener('click', () => {
+                        hidden.value = item.url;
+                        const paste = form.querySelector('[data-gif-paste]');
+                        if (paste) {
+                            paste.value = item.url;
+                        }
+                        results.querySelectorAll('button').forEach((existing) => existing.classList.remove('selected'));
+                        option.classList.add('selected');
+                    });
+                    results.appendChild(option);
+                });
+            } catch (error) {
+                results.textContent = error.message;
+            }
+        });
+    });
+
+    document.querySelectorAll('[data-gif-paste]').forEach((input) => {
+        input.addEventListener('input', () => {
+            const hidden = input.closest('form')?.querySelector('[data-gif-url]');
+            if (hidden) {
+                hidden.value = input.value.trim();
+            }
+        });
+    });
+
+    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+    const setLocation = (form, lat, lng, label) => {
+        const latitude = clamp(Number(lat), -90, 90);
+        const longitude = clamp(Number(lng), -180, 180);
+        form.querySelector('[data-location-lat]').value = latitude.toFixed(6);
+        form.querySelector('[data-location-lng]').value = longitude.toFixed(6);
+        form.querySelector('[data-location-label]').value = label;
+        const selected = form.querySelector('[data-selected-location]');
+        if (selected) {
+            selected.textContent = label;
+        }
+        const pin = form.querySelector('[data-map-pin]');
+        if (pin) {
+            pin.style.display = 'block';
+            pin.style.left = `${((longitude + 180) / 360) * 100}%`;
+            pin.style.top = `${((90 - latitude) / 180) * 100}%`;
+        }
+    };
+
+    document.querySelectorAll('[data-location-search]').forEach((button) => {
+        button.addEventListener('click', async () => {
+            const form = button.closest('form');
+            const input = form?.querySelector('[data-location-query]');
+            const results = form?.querySelector('[data-location-results]');
+            const query = input?.value.trim() || '';
+            if (!form || !input || !results || query === '') {
+                return;
+            }
+            results.textContent = 'Searching...';
+            try {
+                const data = await jsonFetch(`/api/locations?q=${encodeURIComponent(query)}`);
+                results.textContent = '';
+                if (!data.items || data.items.length === 0) {
+                    results.textContent = 'No places found.';
+                    return;
+                }
+                data.items.forEach((item) => {
+                    const option = document.createElement('button');
+                    option.type = 'button';
+                    option.textContent = item.label;
+                    option.addEventListener('click', () => setLocation(form, item.lat, item.lng, item.label));
+                    results.appendChild(option);
+                });
+            } catch (error) {
+                results.textContent = error.message;
+            }
+        });
+    });
+
+    document.querySelectorAll('[data-map-picker]').forEach((picker) => {
+        picker.addEventListener('click', (event) => {
+            const form = picker.closest('form');
+            if (!form) {
+                return;
+            }
+            const rect = picker.getBoundingClientRect();
+            const x = clamp((event.clientX - rect.left) / rect.width, 0, 1);
+            const y = clamp((event.clientY - rect.top) / rect.height, 0, 1);
+            const lat = 90 - (y * 180);
+            const lng = (x * 360) - 180;
+            setLocation(form, lat, lng, `${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+        });
+    });
 
     document.querySelectorAll('[data-note-toggle]').forEach((button) => {
         button.addEventListener('click', () => {

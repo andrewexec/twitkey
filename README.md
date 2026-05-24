@@ -42,10 +42,14 @@ Docker Compose reads `.env` in two ways here: it uses `HTTP_PORT` and `HTTPS_POR
 | `DB_PASS` | `changeme` | MySQL password. |
 | `ADMIN_SETUP_TOKEN` | unset | One-time first-admin setup token. |
 | `MAX_AVATAR_SIZE_KB` | `2048` | Maximum uploaded avatar size. |
+| `MAX_ATTACHMENT_SIZE_KB` | `5120` | Maximum tweet attachment size. |
+| `GIF_API_SEARCH_URL` | `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrlimit=12&gsrsearch={query}%20filetype:bitmap%20gif&prop=imageinfo&iiprop=url%7Cmime&format=json&origin=*` | No-key GIF search endpoint. Replace `{query}` with the encoded search term. |
+| `LOCATION_SEARCH_URL` | `https://nominatim.openstreetmap.org/search?format=json&limit=6&q={query}` | Location search endpoint. Replace `{query}` with the encoded search term. Respect the provider usage policy or swap in your own endpoint. |
 
 ## Features
 
 - 140-character tweets, replies, classic RT retweets, favorites, follows, @replies, search, trends, profile pages, public and home timelines.
+- Polls, image attachments, no-key GIF search, map-picked locations, and scheduled posts from the classic compose box.
 - Direct messages, notifications, pagination, avatar uploads, and profile settings.
 - Community Notes with eligibility, helpful/unhelpful voting, automatic approval/rejection, admin moderation, and misleading-note flags.
 - Admin dashboard with user moderation, tweet moderation, note moderation, verification grants, suspensions, account deletion, and audit logging.

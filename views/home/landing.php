@@ -3,7 +3,7 @@ use Twitkey\Core\Helpers;
 ?>
 <section class="landing-hero">
     <div class="landing-bird-wrap">
-        <img src="/img/logo.png" class="landing-bird" alt="">
+        <img src="/img/logo.svg" class="landing-bird" alt="">
     </div>
     <h1>Welcome to <?= Helpers::h(Helpers::env('APP_NAME', 'Twitkey')) ?></h1>
     <p>Share short updates, follow people, and keep track of the public conversation in a classic 2009-style timeline.</p>
