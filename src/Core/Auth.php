@@ -91,10 +91,12 @@ final class Auth
     {
         $user = self::requireLogin();
         if ((int)$user['is_suspended'] === 1) {
+            $reason = trim((string)($user['suspension_reason'] ?? ''));
+            $message = 'This account has been suspended.' . ($reason !== '' ? ' Reason: ' . $reason : '');
             if (Helpers::wantsJson()) {
-                Helpers::json(['ok' => false, 'error' => 'This account has been suspended.'], 403);
+                Helpers::json(['ok' => false, 'error' => $message], 403);
             }
-            Session::flash('error', 'This account has been suspended.');
+            Session::flash('error', $message);
             Helpers::redirect('/');
         }
         return $user;

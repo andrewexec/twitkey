@@ -7,12 +7,18 @@ $bannerUrl = Helpers::bannerUrl($profile);
         <div class="profile-banner" aria-hidden="true"></div>
     <?php endif; ?>
     <?php if ((int)$profile['is_suspended'] === 1): ?>
-        <div class="suspended-banner">This account has been suspended.</div>
+        <div class="suspended-banner">
+            This account has been suspended.
+            <?php if (!empty($profile['suspension_reason'])): ?>
+                <span><?= Helpers::h($profile['suspension_reason']) ?></span>
+            <?php endif; ?>
+        </div>
     <?php endif; ?>
     <img src="<?= Helpers::avatarUrl($profile) ?>" class="profile-avatar" alt="">
     <div class="profile-info">
         <h1><?= Helpers::h($profile['display_name']) ?> <?= Helpers::renderBadges($profile) ?><?= (int)($profile['is_private'] ?? 0) === 1 ? ' <span class="lock-badge" title="Private account">🔒</span>' : '' ?></h1>
         <div class="profile-username">@<?= Helpers::h($profile['username']) ?><?= (int)($profile['is_private'] ?? 0) === 1 ? ' <span title="Private account">🔒</span>' : '' ?></div>
+        <?= Helpers::followsYouBadge($profile) ?>
         <?php if ((int)$profile['is_admin'] === 1): ?>
             <div class="staff-label">This user is a Administrator of <?= Helpers::h(Helpers::env('APP_NAME', 'Twitkey')) ?></div>
         <?php endif; ?>
@@ -48,7 +54,7 @@ $bannerUrl = Helpers::bannerUrl($profile);
     <a class="<?= $tab === 'favorites' ? 'active' : '' ?>" href="/<?= Helpers::h($profile['username']) ?>?tab=favorites">Favorites</a>
 </nav>
 
-<div class="timeline">
+<div class="timeline" id="timeline"<?= $canSeeTweets ? ' data-realtime-feed="/api/timeline?scope=profile&amp;username=' . Helpers::h($profile['username']) . '&amp;tab=' . Helpers::h($tab) . '" data-realtime-insert="prepend"' : '' ?>>
     <?php if (!$canSeeTweets): ?>
         <div class="empty-state">This account is private. Follow requests must be approved before posts are visible.</div>
     <?php elseif ($tweets === []): ?>

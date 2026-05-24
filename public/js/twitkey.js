@@ -16,6 +16,33 @@
         return data;
     };
 
+    let audioContext = null;
+    const playNotificationSound = () => {
+        try {
+            audioContext = audioContext || new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            oscillator.type = 'sine';
+            oscillator.frequency.value = 880;
+            gain.gain.setValueAtTime(0.0001, audioContext.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.08, audioContext.currentTime + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.24);
+            oscillator.connect(gain);
+            gain.connect(audioContext.destination);
+            oscillator.start();
+            oscillator.stop(audioContext.currentTime + 0.26);
+        } catch {
+            // Browsers can block generated audio before the first user gesture.
+        }
+    };
+
+    const formatCountLabel = (count, label) => {
+        if (count <= 0) {
+            return label;
+        }
+        return `(${count > 99 ? '99+' : count}) ${label}`;
+    };
+
     const setupCounter = (textarea) => {
         const target = document.querySelector(textarea.dataset.counterTarget || '');
         const form = textarea.closest('form');
@@ -48,10 +75,10 @@
         if (attachmentButton?.dataset.defaultLabel) {
             attachmentButton.lastChild.textContent = attachmentButton.dataset.defaultLabel;
         }
-        form.querySelectorAll('[data-gif-results], [data-location-results]').forEach((target) => {
+        form.querySelectorAll('[data-location-results]').forEach((target) => {
             target.textContent = '';
         });
-        form.querySelectorAll('[data-gif-url], [data-location-lat], [data-location-lng], [data-location-label]').forEach((input) => {
+        form.querySelectorAll('[data-location-lat], [data-location-lng], [data-location-label]').forEach((input) => {
             input.value = '';
         });
         const selectedLocation = form.querySelector('[data-selected-location]');
@@ -115,6 +142,64 @@
                 } catch (error) {
                     alert(error.message);
                 }
+            });
+        });
+    };
+
+    const wireAttachments = (root = document) => {
+        root.querySelectorAll('[data-attachment-button]').forEach((button) => {
+            if (button.dataset.bound) {
+                return;
+            }
+            button.dataset.bound = '1';
+            button.dataset.defaultLabel = button.lastChild.textContent;
+            button.addEventListener('click', () => {
+                button.closest('form')?.querySelector('[data-attachment-input]')?.click();
+            });
+        });
+
+        root.querySelectorAll('[data-attachment-input]').forEach((input) => {
+            if (input.dataset.bound) {
+                return;
+            }
+            input.dataset.bound = '1';
+            input.addEventListener('change', () => {
+                const button = input.closest('form')?.querySelector('[data-attachment-button]');
+                if (!button) {
+                    return;
+                }
+                const count = input.files ? input.files.length : 0;
+                button.lastChild.textContent = count > 0 ? `${count} file${count === 1 ? '' : 's'}` : (button.dataset.defaultLabel || 'Attachment');
+            });
+        });
+    };
+
+    const wireMediaLightbox = (root = document) => {
+        const lightbox = document.querySelector('[data-media-lightbox]');
+        const content = lightbox?.querySelector('[data-lightbox-content]');
+        if (!lightbox || !content) {
+            return;
+        }
+        root.querySelectorAll('[data-media-lightbox-item]').forEach((link) => {
+            if (link.dataset.bound) {
+                return;
+            }
+            link.dataset.bound = '1';
+            link.addEventListener('click', (event) => {
+                event.preventDefault();
+                content.textContent = '';
+                const url = link.getAttribute('href') || '';
+                const type = link.dataset.mediaType || 'image';
+                const node = type === 'video' ? document.createElement('video') : document.createElement('img');
+                node.src = url;
+                if (type === 'video') {
+                    node.controls = true;
+                    node.autoplay = true;
+                } else {
+                    node.alt = 'Expanded media';
+                }
+                content.appendChild(node);
+                lightbox.hidden = false;
             });
         });
     };
@@ -306,6 +391,8 @@
         wireDelete(root);
         wireConfirm(root);
         wirePoll(root);
+        wireAttachments(root);
+        wireMediaLightbox(root);
     };
 
     wireDynamic(document);
@@ -327,74 +414,35 @@
         });
     });
 
-    document.querySelectorAll('[data-attachment-button]').forEach((button) => {
-        button.dataset.defaultLabel = button.lastChild.textContent;
-        button.addEventListener('click', () => {
-            button.closest('form')?.querySelector('[data-attachment-input]')?.click();
+    const mergeFilesIntoInput = (input, files) => {
+        if (!input || !files || files.length === 0 || typeof DataTransfer === 'undefined') {
+            return false;
+        }
+        const transfer = new DataTransfer();
+        Array.from(input.files || []).forEach((file) => transfer.items.add(file));
+        Array.from(files).forEach((file) => {
+            if (file.type.startsWith('image/') || file.type.startsWith('video/') || file.type.startsWith('audio/')) {
+                transfer.items.add(file);
+            }
         });
-    });
+        input.files = transfer.files;
+        input.dispatchEvent(new Event('change'));
+        return true;
+    };
 
-    document.querySelectorAll('[data-attachment-input]').forEach((input) => {
-        input.addEventListener('change', () => {
-            const button = input.closest('form')?.querySelector('[data-attachment-button]');
-            if (!button) {
-                return;
-            }
-            const count = input.files ? input.files.length : 0;
-            button.lastChild.textContent = count > 0 ? `${count} file${count === 1 ? '' : 's'}` : (button.dataset.defaultLabel || 'Attachment');
-        });
-    });
-
-    document.querySelectorAll('[data-gif-search]').forEach((button) => {
-        button.addEventListener('click', async () => {
-            const form = button.closest('form');
-            const input = form?.querySelector('[data-gif-query]');
-            const results = form?.querySelector('[data-gif-results]');
-            const hidden = form?.querySelector('[data-gif-url]');
-            const query = input?.value.trim() || '';
-            if (!form || !input || !results || !hidden || query === '') {
-                return;
-            }
-            results.textContent = 'Searching...';
-            try {
-                const data = await jsonFetch(`/api/gifs?q=${encodeURIComponent(query)}`);
-                results.textContent = '';
-                if (!data.items || data.items.length === 0) {
-                    results.textContent = 'No GIFs found.';
-                    return;
-                }
-                data.items.forEach((item) => {
-                    const option = document.createElement('button');
-                    option.type = 'button';
-                    option.title = item.title || 'GIF';
-                    const image = document.createElement('img');
-                    image.src = item.url;
-                    image.alt = item.title || 'GIF';
-                    option.appendChild(image);
-                    option.addEventListener('click', () => {
-                        hidden.value = item.url;
-                        const paste = form.querySelector('[data-gif-paste]');
-                        if (paste) {
-                            paste.value = item.url;
-                        }
-                        results.querySelectorAll('button').forEach((existing) => existing.classList.remove('selected'));
-                        option.classList.add('selected');
-                    });
-                    results.appendChild(option);
-                });
-            } catch (error) {
-                results.textContent = error.message;
-            }
-        });
-    });
-
-    document.querySelectorAll('[data-gif-paste]').forEach((input) => {
-        input.addEventListener('input', () => {
-            const hidden = input.closest('form')?.querySelector('[data-gif-url]');
-            if (hidden) {
-                hidden.value = input.value.trim();
-            }
-        });
+    document.addEventListener('paste', (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLTextAreaElement)) {
+            return;
+        }
+        const files = Array.from(event.clipboardData?.files || []).filter((file) => file.type.startsWith('image/'));
+        if (files.length === 0) {
+            return;
+        }
+        const input = target.closest('form')?.querySelector('[data-attachment-input]');
+        if (mergeFilesIntoInput(input, files)) {
+            event.preventDefault();
+        }
     });
 
     const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -475,6 +523,162 @@
         dmThread.scrollTop = dmThread.scrollHeight;
     }
 
+    const wireDirectMessages = () => {
+        const thread = document.querySelector('[data-dm-thread][data-dm-user]');
+        const form = document.querySelector('[data-dm-form]');
+        const countNode = document.querySelector('[data-dm-message-count]');
+        const lastMessageId = () => Math.max(0, ...Array.from(thread?.querySelectorAll('[data-message-id]') || []).map((row) => Number(row.dataset.messageId || '0')));
+        const appendMessages = (html, count) => {
+            if (!thread || !html) {
+                return;
+            }
+            thread.insertAdjacentHTML('beforeend', html);
+            wireDynamic(thread);
+            thread.scrollTop = thread.scrollHeight;
+            if (countNode && Number.isFinite(Number(count))) {
+                countNode.textContent = String(count);
+            }
+        };
+
+        if (form && thread) {
+            form.addEventListener('submit', async (event) => {
+                if (!window.fetch) {
+                    return;
+                }
+                event.preventDefault();
+                const button = form.querySelector('button[type="submit"]');
+                if (button) {
+                    button.disabled = true;
+                }
+                try {
+                    const data = await jsonFetch(form.action, { method: 'POST', body: new FormData(form) });
+                    appendMessages(data.html, data.count);
+                    form.reset();
+                } catch (error) {
+                    alert(error.message);
+                } finally {
+                    if (button) {
+                        button.disabled = false;
+                    }
+                }
+            });
+        }
+
+        if (thread) {
+            const pollMessages = async () => {
+                if (document.hidden) {
+                    return;
+                }
+                const before = lastMessageId();
+                try {
+                    const data = await jsonFetch(`/api/messages?user=${encodeURIComponent(thread.dataset.dmUser)}&since_id=${before}`);
+                    appendMessages(data.html, data.count);
+                    if (data.html && lastMessageId() > before) {
+                        playNotificationSound();
+                    }
+                } catch {
+                    // Ignore transient polling failures.
+                }
+            };
+            setInterval(pollMessages, 3000);
+        }
+    };
+    wireDirectMessages();
+
+    const wireRealtimeFeeds = () => {
+        document.querySelectorAll('[data-realtime-feed]').forEach((timeline) => {
+            let since = Math.max(0, ...Array.from(timeline.querySelectorAll('[data-tweet-id]')).map((row) => Number(row.dataset.tweetId || '0')));
+            const insertMode = timeline.dataset.realtimeInsert || 'prepend';
+            const pollFeed = async () => {
+                if (document.hidden) {
+                    return;
+                }
+                try {
+                    const separator = timeline.dataset.realtimeFeed.includes('?') ? '&' : '?';
+                    const data = await jsonFetch(`${timeline.dataset.realtimeFeed}${separator}since_id=${since}`);
+                    if (!data.html) {
+                        return;
+                    }
+                    timeline.querySelector('.empty-state')?.remove();
+                    if (insertMode === 'append') {
+                        timeline.insertAdjacentHTML('beforeend', data.html);
+                    } else {
+                        timeline.insertAdjacentHTML('afterbegin', data.html);
+                    }
+                    wireDynamic(timeline);
+                    since = Math.max(since, ...Array.from(timeline.querySelectorAll('[data-tweet-id]')).map((row) => Number(row.dataset.tweetId || '0')));
+                } catch {
+                    // Ignore transient polling failures.
+                }
+            };
+            setInterval(pollFeed, 5000);
+        });
+    };
+    wireRealtimeFeeds();
+
+    const wireRealtimeCounters = () => {
+        const notificationsLink = document.querySelector('[data-notifications-link]');
+        const messagesLink = document.querySelector('[data-messages-link]');
+        if (!notificationsLink && !messagesLink) {
+            return;
+        }
+        let lastNotifications = Number(notificationsLink?.dataset.count || '0');
+        let lastMessages = Number(messagesLink?.dataset.count || '0');
+        const pollCounters = async () => {
+            try {
+                const data = await jsonFetch('/api/realtime');
+                const notifications = Number(data.notifications || 0);
+                const messages = Number(data.messages || 0);
+                if (notificationsLink) {
+                    notificationsLink.textContent = formatCountLabel(notifications, 'Notifications');
+                    notificationsLink.dataset.count = String(notifications);
+                }
+                if (messagesLink) {
+                    messagesLink.textContent = formatCountLabel(messages, 'Direct Messages');
+                    messagesLink.dataset.count = String(messages);
+                }
+                if (notifications > lastNotifications || messages > lastMessages) {
+                    playNotificationSound();
+                }
+                lastNotifications = notifications;
+                lastMessages = messages;
+            } catch {
+                // Ignore transient polling failures.
+            }
+        };
+        setInterval(pollCounters, 5000);
+    };
+    wireRealtimeCounters();
+
+    const wireRealtimePolls = () => {
+        const refreshPollRows = async () => {
+            if (document.hidden) {
+                return;
+            }
+            const ids = Array.from(document.querySelectorAll('.tweet-row[data-tweet-id]'))
+                .filter((row) => row.querySelector('[data-poll-form]'))
+                .map((row) => row.dataset.tweetId)
+                .filter(Boolean);
+            if (ids.length === 0) {
+                return;
+            }
+            try {
+                const data = await jsonFetch(`/api/polls?tweet_ids=${encodeURIComponent([...new Set(ids)].join(','))}`);
+                Object.entries(data.rows || {}).forEach(([id, html]) => {
+                    const row = document.querySelector(`.tweet-row[data-tweet-id="${id.replace(/[^0-9]/g, '')}"]`);
+                    if (row && html) {
+                        row.outerHTML = html;
+                    }
+                });
+                wireDynamic(document);
+            } catch {
+                // Ignore transient polling failures.
+            }
+        };
+        setInterval(refreshPollRows, 8000);
+    };
+    wireRealtimePolls();
+
     const siteAlert = document.querySelector('[data-site-alert]');
     if (siteAlert) {
         const message = siteAlert.querySelector('[data-site-alert-message]');
@@ -506,6 +710,35 @@
         });
         setInterval(refreshAlert, 10000);
     }
+
+    document.querySelector('[data-lightbox-close]')?.addEventListener('click', () => {
+        const lightbox = document.querySelector('[data-media-lightbox]');
+        const content = lightbox?.querySelector('[data-lightbox-content]');
+        if (content) {
+            content.textContent = '';
+        }
+        if (lightbox) {
+            lightbox.hidden = true;
+        }
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            document.querySelector('[data-lightbox-close]')?.dispatchEvent(new Event('click'));
+        }
+        const inspectShortcut = event.key === 'F12'
+            || ((event.ctrlKey || event.metaKey) && event.shiftKey && ['I', 'J', 'C'].includes(event.key.toUpperCase()))
+            || ((event.ctrlKey || event.metaKey) && event.key.toUpperCase() === 'U');
+        if (inspectShortcut) {
+            event.preventDefault();
+        }
+    });
+
+    document.addEventListener('contextmenu', (event) => {
+        if (!event.target.closest('input, textarea')) {
+            event.preventDefault();
+        }
+    });
 
     const usernameInput = document.querySelector('[data-username-check]');
     if (usernameInput) {

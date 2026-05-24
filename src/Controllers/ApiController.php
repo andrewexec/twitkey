@@ -3,8 +3,11 @@ declare(strict_types=1);
 
 namespace Twitkey\Controllers;
 
+use Twitkey\Core\Auth;
 use Twitkey\Core\Database;
 use Twitkey\Core\Helpers;
+use Twitkey\Models\Notification;
+use Twitkey\Models\Tweet;
 use Twitkey\Models\User;
 
 final class ApiController
@@ -123,7 +126,7 @@ final class ApiController
     {
         $isCurrentUpload = preg_match('/^(avatar|banner)_[a-f0-9]{64}\.jpg$/', $file) === 1;
         $isLegacyAvatar = preg_match('/^[a-f0-9]{64}\.jpg$/', $file) === 1;
-        $isTweetMedia = preg_match('/^tweet_[a-f0-9]{64}\.(jpg|png|gif|webp)$/', $file) === 1;
+        $isTweetMedia = preg_match('/^tweet_[a-f0-9]{64}\.(jpg|png|gif|webp|mp3|m4a|aac|wav|ogg|flac|aiff|wma|mp4|mov|webm|ogv|avi|wmv|mkv)$/', $file) === 1;
         if (!$isCurrentUpload && !$isLegacyAvatar && !$isTweetMedia) {
             http_response_code(404);
             return;
@@ -140,6 +143,21 @@ final class ApiController
             'png' => 'image/png',
             'gif' => 'image/gif',
             'webp' => 'image/webp',
+            'mp3' => 'audio/mpeg',
+            'm4a' => 'audio/mp4',
+            'aac' => 'audio/aac',
+            'wav' => 'audio/wav',
+            'ogg' => 'audio/ogg',
+            'flac' => 'audio/flac',
+            'aiff' => 'audio/aiff',
+            'wma' => 'audio/x-ms-wma',
+            'mp4' => 'video/mp4',
+            'mov' => 'video/quicktime',
+            'webm' => 'video/webm',
+            'ogv' => 'video/ogg',
+            'avi' => 'video/x-msvideo',
+            'wmv' => 'video/x-ms-wmv',
+            'mkv' => 'video/x-matroska',
             default => 'image/jpeg',
         };
 
@@ -159,6 +177,116 @@ final class ApiController
             ['empty' => '']
         );
         Helpers::json(['ok' => true, 'alert' => $alert]);
+    }
+
+    /**
+     * Return current realtime counters for notification and message badges.
+     */
+    public function realtime(): void
+    {
+        $user = Auth::user();
+        if (!$user) {
+            Helpers::json(['ok' => true, 'notifications' => 0, 'messages' => 0]);
+        }
+        $messages = Database::instance()->one(
+            'SELECT COUNT(*) AS count FROM direct_messages WHERE recipient_id = :id AND is_read = 0',
+            ['id' => (int)$user['id']]
+        );
+        Helpers::json([
+            'ok' => true,
+            'notifications' => Notification::unreadCount((int)$user['id']),
+            'messages' => (int)($messages['count'] ?? 0),
+        ]);
+    }
+
+    /**
+     * Return newer feed rows for near-realtime timeline polling.
+     */
+    public function timeline(): void
+    {
+        $scope = (string)($_GET['scope'] ?? 'public');
+        $sinceId = max(0, (int)($_GET['since_id'] ?? 0));
+        $currentUser = Auth::user();
+        $tweets = [];
+
+        if ($scope === 'home') {
+            $user = Auth::requireLogin();
+            $tweets = Tweet::newerForUser((int)$user['id'], $sinceId);
+        } elseif ($scope === 'mentions') {
+            $user = Auth::requireLogin();
+            $tweets = Tweet::newerMentionsFor((string)$user['username'], $sinceId, (int)$user['id']);
+        } elseif ($scope === 'profile') {
+            $profile = User::findByUsername((string)($_GET['username'] ?? ''));
+            if ($profile && User::canViewPosts($profile, $currentUser)) {
+                $tab = (string)($_GET['tab'] ?? 'tweets');
+                $tweets = Tweet::newerForProfile((int)$profile['id'], $tab, $sinceId, Auth::isAdmin());
+            }
+        } elseif ($scope === 'replies') {
+            $parent = Tweet::findWithUser((int)($_GET['tweet_id'] ?? 0), true);
+            if ($parent && Tweet::canBeViewedBy($parent, $currentUser)) {
+                $tweets = array_values(array_filter(
+                    Tweet::newerRepliesTo((int)$parent['id'], $sinceId),
+                    static fn(array $reply): bool => Tweet::canBeViewedBy($reply, $currentUser)
+                ));
+            }
+        } else {
+            $tweets = Tweet::newerPublic($sinceId);
+        }
+
+        $html = '';
+        foreach ($tweets as $tweet) {
+            $html .= Helpers::renderPartial('partials/tweet_row', ['tweet' => $tweet, 'currentUser' => $currentUser]);
+        }
+        Helpers::json(['ok' => true, 'html' => $html, 'count' => count($tweets)]);
+    }
+
+    /**
+     * Return refreshed poll tweet rows for visible poll cards.
+     */
+    public function polls(): void
+    {
+        $ids = array_map('intval', explode(',', (string)($_GET['tweet_ids'] ?? '')));
+        $rows = Tweet::visibleRowsByIds($ids, Auth::user());
+        $html = [];
+        foreach ($rows as $row) {
+            $html[(string)(int)$row['id']] = Helpers::renderPartial('partials/tweet_row', ['tweet' => $row, 'currentUser' => Auth::user()]);
+        }
+        Helpers::json(['ok' => true, 'rows' => $html]);
+    }
+
+    /**
+     * Return newer direct messages in the selected conversation.
+     */
+    public function messages(): void
+    {
+        $user = Auth::requireLogin();
+        $selected = User::findByUsername((string)($_GET['user'] ?? ''));
+        if (!$selected) {
+            Helpers::json(['ok' => false, 'error' => 'Conversation not found.'], 404);
+        }
+        $sinceId = max(0, (int)($_GET['since_id'] ?? 0));
+        $db = Database::instance();
+        $messages = $db->all(
+            'SELECT dm.*, s.username AS sender_username, s.display_name AS sender_display_name, s.avatar AS sender_avatar,
+                    s.is_admin AS sender_is_admin, s.is_system AS sender_is_system, s.is_verified AS sender_is_verified, s.is_private AS sender_is_private, s.verified_type AS sender_verified_type
+             FROM direct_messages dm
+             JOIN users s ON s.id = dm.sender_id
+             WHERE dm.id > :since_id
+               AND ((dm.sender_id = :me AND dm.recipient_id = :them) OR (dm.sender_id = :them AND dm.recipient_id = :me))
+             ORDER BY dm.created_at ASC',
+            ['since_id' => $sinceId, 'me' => (int)$user['id'], 'them' => (int)$selected['id']]
+        );
+        $db->execute('UPDATE direct_messages SET is_read = 1 WHERE recipient_id = :me AND sender_id = :them', ['me' => (int)$user['id'], 'them' => (int)$selected['id']]);
+
+        $html = '';
+        foreach ($messages as $message) {
+            $html .= Helpers::renderPartial('partials/dm_message', ['message' => $message, 'currentUser' => $user]);
+        }
+        $count = $db->one(
+            'SELECT COUNT(*) AS count FROM direct_messages WHERE (sender_id = :me AND recipient_id = :them) OR (sender_id = :them AND recipient_id = :me)',
+            ['me' => (int)$user['id'], 'them' => (int)$selected['id']]
+        );
+        Helpers::json(['ok' => true, 'html' => $html, 'count' => (int)($count['count'] ?? 0)]);
     }
 
     /**

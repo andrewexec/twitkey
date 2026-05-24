@@ -57,10 +57,14 @@ final class TweetController
             return;
         }
         $note = CommunityNote::approvedForTweet((int)$tweet['id']);
+        $replies = array_values(array_filter(
+            Tweet::repliesTo((int)$tweet['id'], true),
+            static fn(array $reply): bool => Tweet::canBeViewedBy($reply, $currentUser)
+        ));
         Helpers::render('tweet/show', [
             'title' => 'Tweet by @' . $tweet['username'],
             'tweet' => $tweet,
-            'replies' => Tweet::repliesTo((int)$tweet['id'], true),
+            'replies' => $replies,
             'note' => $note,
             'canNote' => Auth::isAdmin() || Helpers::eligibleForNotes($currentUser),
         ]);
@@ -79,13 +83,18 @@ final class TweetController
             if (!$parent || !Tweet::canBeViewedBy($parent, $user)) {
                 throw new \RuntimeException('Forbidden.');
             }
-            $tweet = Tweet::create((int)$user['id'], (string)($_POST['body'] ?? ''), (int)$id);
+            $media = $this->handleTweetMediaUploads();
+            $metadata = ['media' => $media];
+            $tweet = Tweet::create((int)$user['id'], (string)($_POST['body'] ?? ''), (int)$id, null, $metadata);
             if (Helpers::wantsJson()) {
                 $html = Helpers::renderPartial('partials/tweet_row', ['tweet' => $tweet, 'currentUser' => $user]);
                 Helpers::json(['ok' => true, 'html' => $html]);
             }
             Helpers::redirect('/tweet/' . (int)$id);
         } catch (\Throwable $e) {
+            if (isset($media) && is_array($media)) {
+                $this->deleteStoredMedia($media);
+            }
             $this->fail($e->getMessage(), '/tweet/' . (int)$id);
         }
     }
@@ -341,11 +350,34 @@ final class TweetController
 
         $stored = [];
         $maxBytes = (int)Helpers::env('MAX_ATTACHMENT_SIZE_KB', '5120') * 1024;
-        $allowed = [
+        $allowedImages = [
             'image/jpeg' => 'jpg',
             'image/png' => 'png',
             'image/gif' => 'gif',
             'image/webp' => 'webp',
+        ];
+        $allowedMedia = [
+            'audio/mpeg' => 'mp3',
+            'audio/mp3' => 'mp3',
+            'audio/mp4' => 'm4a',
+            'audio/aac' => 'aac',
+            'audio/wav' => 'wav',
+            'audio/x-wav' => 'wav',
+            'audio/ogg' => 'ogg',
+            'audio/webm' => 'webm',
+            'audio/flac' => 'flac',
+            'audio/x-flac' => 'flac',
+            'audio/x-m4a' => 'm4a',
+            'audio/x-aiff' => 'aiff',
+            'audio/aiff' => 'aiff',
+            'audio/x-ms-wma' => 'wma',
+            'video/mp4' => 'mp4',
+            'video/quicktime' => 'mov',
+            'video/webm' => 'webm',
+            'video/ogg' => 'ogv',
+            'video/x-msvideo' => 'avi',
+            'video/x-ms-wmv' => 'wmv',
+            'video/x-matroska' => 'mkv',
         ];
 
         foreach ($_FILES['attachments']['name'] as $index => $_name) {
@@ -363,16 +395,23 @@ final class TweetController
                 throw new \RuntimeException('Attachment is too large.');
             }
             $tmp = (string)$_FILES['attachments']['tmp_name'][$index];
-            $info = getimagesize($tmp);
-            if ($info === false || !isset($allowed[$info['mime']])) {
-                throw new \RuntimeException('Attachments must be real JPEG, PNG, GIF, or WebP images.');
+            $info = @getimagesize($tmp);
+            $mime = is_array($info) && isset($info['mime']) ? (string)$info['mime'] : '';
+            $extension = $mime !== '' && isset($allowedImages[$mime]) ? $allowedImages[$mime] : null;
+            if ($extension === null) {
+                $finfo = new \finfo(FILEINFO_MIME_TYPE);
+                $mime = (string)($finfo->file($tmp) ?: '');
+                $extension = $allowedMedia[$mime] ?? null;
             }
-            $filename = 'tweet_' . hash('sha256', microtime(true) . ':' . random_bytes(16) . ':' . $index) . '.' . $allowed[$info['mime']];
+            if ($extension === null) {
+                throw new \RuntimeException('Attachments must be real image, audio, or video files.');
+            }
+            $filename = 'tweet_' . hash('sha256', microtime(true) . ':' . random_bytes(16) . ':' . $index) . '.' . $extension;
             $path = Database::instance()->dataDir() . '/uploads/' . $filename;
             if (!move_uploaded_file($tmp, $path)) {
                 throw new \RuntimeException('Attachment could not be saved.');
             }
-            $stored[] = ['file_name' => $filename, 'mime_type' => $info['mime']];
+            $stored[] = ['file_name' => $filename, 'mime_type' => $mime];
         }
 
         return $stored;

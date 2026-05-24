@@ -25,16 +25,27 @@ $favorited = $currentUser ? Tweet::isFavorited((int)$currentUser['id'], $tweetId
         <?php if ($deleted): ?>
             <span class="tweet-body deleted-text">[Tweet deleted]</span>
         <?php else: ?>
-            <strong><?= Helpers::renderUserName($author) ?></strong>
+            <strong><?= Helpers::renderUserName($author) ?></strong> <?= Helpers::followsYouBadge($author) ?>
+            <?php if (!empty($tweet['reply_to_id']) && !empty($tweet['reply_parent_username'])): ?>
+                <div class="reply-context">
+                    Replying to <a href="/<?= Helpers::h($tweet['reply_parent_username']) ?>">@<?= Helpers::h($tweet['reply_parent_username']) ?></a>
+                    <?php if ((int)($tweet['reply_parent_deleted'] ?? 0) === 1): ?>
+                        <span>[Tweet deleted]</span>
+                    <?php elseif (!empty($tweet['reply_parent_body'])): ?>
+                        <span><?= Helpers::h(Helpers::truncate((string)$tweet['reply_parent_body'], 80)) ?></span>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
             <?php if ((string)$tweet['body'] !== ''): ?>
                 <span class="tweet-body"><?= Helpers::renderTweetBody((string)$tweet['body']) ?></span>
             <?php endif; ?>
+            <?= Helpers::renderEmbeds((string)$tweet['body']) ?>
             <?php if (!empty($tweet['approved_note_body'])): ?>
                 <a class="note-preview" href="/tweet/<?= $tweetId ?>" title="<?= Helpers::h(Helpers::truncate((string)$tweet['approved_note_body'], 120)) ?>">📋</a>
             <?php endif; ?>
             <?php if (!empty($tweet['gif_url'])): ?>
                 <div class="tweet-gif">
-                    <a href="<?= Helpers::h($tweet['gif_url']) ?>" target="_blank" rel="noopener">
+                    <a href="/gif_proxy?url=<?= rawurlencode((string)$tweet['gif_url']) ?>" data-media-lightbox-item data-media-type="image">
                         <img src="/gif_proxy?url=<?= rawurlencode((string)$tweet['gif_url']) ?>" alt="GIF attachment" loading="lazy">
                     </a>
                 </div>
@@ -42,9 +53,23 @@ $favorited = $currentUser ? Tweet::isFavorited((int)$currentUser['id'], $tweetId
             <?php if (!empty($tweet['media'])): ?>
                 <div class="tweet-media media-count-<?= count($tweet['media']) ?>">
                     <?php foreach ($tweet['media'] as $media): ?>
-                        <a href="/media/<?= rawurlencode((string)$media['file_name']) ?>" target="_blank" rel="noopener">
-                            <img src="/media/<?= rawurlencode((string)$media['file_name']) ?>" alt="Tweet attachment" loading="lazy">
-                        </a>
+                        <?php
+                        $mediaUrl = '/media/' . rawurlencode((string)$media['file_name']);
+                        $mime = (string)($media['mime_type'] ?? '');
+                        ?>
+                        <?php if (str_starts_with($mime, 'video/')): ?>
+                            <a href="<?= Helpers::h($mediaUrl) ?>" data-media-lightbox-item data-media-type="video">
+                                <video src="<?= Helpers::h($mediaUrl) ?>" preload="metadata" muted playsinline></video>
+                            </a>
+                        <?php elseif (str_starts_with($mime, 'audio/')): ?>
+                            <div class="tweet-audio">
+                                <audio src="<?= Helpers::h($mediaUrl) ?>" controls preload="metadata"></audio>
+                            </div>
+                        <?php else: ?>
+                            <a href="<?= Helpers::h($mediaUrl) ?>" data-media-lightbox-item data-media-type="image">
+                                <img src="<?= Helpers::h($mediaUrl) ?>" alt="Tweet attachment" loading="lazy">
+                            </a>
+                        <?php endif; ?>
                     <?php endforeach; ?>
                 </div>
             <?php endif; ?>
@@ -98,9 +123,11 @@ $favorited = $currentUser ? Tweet::isFavorited((int)$currentUser['id'], $tweetId
         </div>
 
         <?php if ($currentUser && !$deleted): ?>
-            <form action="/tweet/<?= $tweetId ?>/reply" method="post" class="inline-reply" data-reply-form>
+            <form action="/tweet/<?= $tweetId ?>/reply" method="post" enctype="multipart/form-data" class="inline-reply" data-reply-form>
                 <?= Helpers::csrfField() ?>
                 <textarea name="body" maxlength="140" placeholder="Reply to @<?= Helpers::h($author['username']) ?>"></textarea>
+                <input type="file" name="attachments[]" accept="image/jpeg,image/png,image/gif,image/webp,audio/*,video/*,.mp3,.mp4,.mov,.m4a,.aac,.wav,.ogg,.flac,.aiff,.wma,.webm,.ogv,.avi,.wmv,.mkv" multiple class="hidden-file" data-attachment-input>
+                <button type="button" class="reply-attach" data-attachment-button>Attach media</button>
                 <button type="submit">reply</button>
             </form>
         <?php endif; ?>

@@ -682,39 +682,94 @@ select {
 }
 
 .tweet-gif img,
-.tweet-media img {
+.tweet-media img,
+.tweet-media video {
     display: block;
+    width: 324px;
+    height: 186px;
     max-width: 100%;
     border: 1px solid #d8e6ef;
     border-radius: 3px;
     background: #f7fbfe;
+    object-fit: cover;
 }
 
 .tweet-gif img {
-    max-height: 260px;
-    object-fit: contain;
+    object-fit: cover;
 }
 
 .tweet-media {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 4px;
-    max-width: 428px;
+    display: block;
+    max-width: 324px;
 }
 
-.tweet-media.media-count-1 {
+.tweet-media a,
+.tweet-audio {
+    display: block;
+    margin-bottom: 5px;
+}
+
+.tweet-media.media-count-1 img,
+.tweet-media.media-count-1 video {
+    width: 324px;
+    height: 186px;
+    object-fit: cover;
+}
+
+.tweet-media:not(.media-count-1) img,
+.tweet-media:not(.media-count-1) video {
+    width: 324px;
+    height: 186px;
+    object-fit: cover;
+}
+
+.tweet-audio {
+    width: 324px;
+    max-width: 100%;
+    border: 1px solid #d8e6ef;
+    background: #f7fbfe;
+    padding: 6px;
+}
+
+.tweet-audio audio {
+    width: 100%;
+}
+
+.tweet-embed {
+    width: 324px;
+    max-width: 100%;
+    margin-top: 6px;
+    border: 1px solid #d8e6ef;
+    background: #f7fbfe;
+}
+
+.tweet-embed iframe {
+    display: block;
+    width: 100%;
+    height: 186px;
+    border: 0;
+}
+
+.tweet-link-card {
+    display: block;
+    width: 324px;
+    max-width: 100%;
+    margin-top: 6px;
+    padding: 7px 8px;
+    border: 1px solid #d8e6ef;
+    background: #f7fbfe;
+    color: #333;
+}
+
+.tweet-link-card strong,
+.tweet-link-card span {
     display: block;
 }
 
-.tweet-media.media-count-1 img {
-    max-height: 320px;
-    object-fit: contain;
-}
-
-.tweet-media:not(.media-count-1) img {
-    width: 100%;
-    height: 138px;
-    object-fit: cover;
+.tweet-link-card span {
+    color: #777;
+    font-size: 11px;
+    margin-top: 2px;
 }
 
 .tweet-poll {
@@ -809,7 +864,7 @@ select {
 }
 
 .inline-reply.open {
-    max-height: 92px;
+    max-height: 124px;
     margin-top: 6px;
 }
 
@@ -832,6 +887,33 @@ select {
     font-size: 11px;
     padding: 2px 7px;
     margin-top: 4px;
+}
+
+.reply-attach {
+    margin-right: 4px;
+}
+
+.reply-context {
+    color: #777;
+    font-size: 11px;
+    margin: 0 0 2px;
+}
+
+.reply-context span {
+    display: block;
+    color: #999;
+}
+
+.follows-you {
+    display: inline-block;
+    border: 1px solid #c9d9e4;
+    background: #f4f9fc;
+    color: #666;
+    font-size: 10px;
+    line-height: 14px;
+    padding: 0 4px;
+    margin-left: 4px;
+    vertical-align: middle;
 }
 
 .secondary-button {
@@ -995,6 +1077,26 @@ select {
     padding: 10px;
 }
 
+.site-footer {
+    width: 900px;
+    margin: 12px auto 24px;
+    color: #777;
+    font-size: 11px;
+}
+
+.site-footer div {
+    border-top: 1px solid var(--border-main);
+    padding: 10px;
+}
+
+.site-footer strong {
+    margin-right: 8px;
+}
+
+.site-footer a {
+    margin-right: 8px;
+}
+
 .flash {
     margin: 10px;
     padding: 7px 9px;
@@ -1021,6 +1123,19 @@ select {
 
 .auth-card h1 {
     margin-bottom: 12px;
+}
+
+.static-page {
+    padding: 14px 16px 20px;
+}
+
+.static-page h2 {
+    font-size: 14px;
+    margin: 14px 0 5px;
+}
+
+.static-page p {
+    margin: 0 0 9px;
 }
 
 .auth-form label,
@@ -1273,6 +1388,13 @@ select {
     font-weight: bold;
 }
 
+.suspended-banner span {
+    display: block;
+    margin-top: 3px;
+    color: #700;
+    font-weight: normal;
+}
+
 .tabs {
     display: flex;
     gap: 10px;
@@ -1399,6 +1521,12 @@ select {
     padding: 10px;
 }
 
+.dm-stats {
+    color: #777;
+    font-size: 11px;
+    margin: -3px 0 8px;
+}
+
 .dm-messages {
     height: 270px;
     overflow-y: auto;
@@ -1430,6 +1558,43 @@ select {
 .dm-form textarea {
     height: 60px;
     resize: vertical;
+}
+
+.media-lightbox[hidden] {
+    display: none;
+}
+
+.media-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(0, 0, 0, .78);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.media-lightbox button {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    width: 32px;
+    height: 32px;
+    border: 1px solid #fff;
+    background: #111;
+    color: #fff;
+    font-size: 24px;
+    line-height: 28px;
+    cursor: pointer;
+}
+
+.media-lightbox img,
+.media-lightbox video {
+    max-width: 92vw;
+    max-height: 86vh;
+    background: #000;
+    border: 3px solid #fff;
 }
 
 .admin-nav {
@@ -1500,12 +1665,16 @@ select {
     display: inline-block;
 }
 
-.admin-actions textarea {
+.admin-actions textarea,
+.admin-actions input[type="text"] {
     width: 180px;
-    min-height: 42px;
     border: 1px solid var(--border-input);
     font-size: 11px;
     padding: 3px 5px;
+}
+
+.admin-actions textarea {
+    min-height: 42px;
     resize: vertical;
 }
 
@@ -1572,8 +1741,18 @@ select {
     }
 
     .tweet-media,
-    .tweet-poll {
+    .tweet-poll,
+    .tweet-gif img,
+    .tweet-media img,
+    .tweet-media video,
+    .tweet-audio,
+    .tweet-embed,
+    .tweet-link-card {
         max-width: 100%;
+    }
+
+    .site-footer {
+        width: 100%;
     }
 
     .header-search {

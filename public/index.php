@@ -32,6 +32,11 @@ if (Helpers::env('APP_DEBUG', 'false') === 'true') {
     ini_set('display_errors', '1');
     error_reporting(E_ALL);
 }
+header('X-Content-Type-Options: nosniff');
+header('X-Frame-Options: DENY');
+header('Referrer-Policy: strict-origin-when-cross-origin');
+header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
+header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; media-src 'self' blob:; connect-src 'self'; frame-src https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://open.spotify.com https://w.soundcloud.com https://player.twitch.tv https://www.tiktok.com https://www.instagram.com https://platform.twitter.com https://x.com https://twitter.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
 
 Session::start();
 Database::instance();
@@ -40,6 +45,10 @@ $router = new Router();
 $router->add('GET', '/', [HomeController::class, 'timeline']);
 $router->add('POST', '/', [TweetController::class, 'create']);
 $router->add('GET', '/public', [HomeController::class, 'publicTimeline']);
+$router->add('GET', '/help', [HomeController::class, 'help']);
+$router->add('GET', '/privacy', [HomeController::class, 'privacy']);
+$router->add('GET', '/policy', [HomeController::class, 'privacy']);
+$router->add('GET', '/terms', [HomeController::class, 'terms']);
 $router->add('GET', '/login', [AuthController::class, 'loginForm']);
 $router->add('POST', '/login', [AuthController::class, 'login']);
 $router->add('GET', '/register', [AuthController::class, 'registerForm']);
@@ -80,6 +89,10 @@ $router->add('GET', '/api/suggest', [ApiController::class, 'suggest']);
 $router->add('GET', '/api/gifs', [ApiController::class, 'gifs']);
 $router->add('GET', '/api/locations', [ApiController::class, 'locations']);
 $router->add('GET', '/api/site_alert', [ApiController::class, 'siteAlert']);
+$router->add('GET', '/api/realtime', [ApiController::class, 'realtime']);
+$router->add('GET', '/api/timeline', [ApiController::class, 'timeline']);
+$router->add('GET', '/api/polls', [ApiController::class, 'polls']);
+$router->add('GET', '/api/messages', [ApiController::class, 'messages']);
 $router->add('GET', '/gif_proxy', [ApiController::class, 'gifProxy']);
 $router->add('GET', '/media/{file}', [ApiController::class, 'media']);
 $router->add('GET', '/{username}/followers', [UserController::class, 'followers']);

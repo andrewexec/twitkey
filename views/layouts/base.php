@@ -7,6 +7,8 @@ use Twitkey\Models\Notification;
 $appName = Helpers::env('APP_NAME', 'Twitkey');
 $unread = $currentUser ? Notification::unreadCount((int)$currentUser['id']) : 0;
 $notificationsLabel = $unread > 0 ? '(' . ($unread > 99 ? '99+' : (string)$unread) . ') Notifications' : 'Notifications';
+$unreadMessages = $currentUser ? (int)(Database::instance()->one('SELECT COUNT(*) AS count FROM direct_messages WHERE recipient_id = :id AND is_read = 0', ['id' => (int)$currentUser['id']])['count'] ?? 0) : 0;
+$messagesLabel = $unreadMessages > 0 ? '(' . ($unreadMessages > 99 ? '99+' : (string)$unreadMessages) . ') Direct Messages' : 'Direct Messages';
 $siteAlert = Database::instance()->one('SELECT id, message, updated_at FROM site_alerts WHERE is_active = 1 AND message <> :empty ORDER BY updated_at DESC, id DESC LIMIT 1', ['empty' => '']);
 ?>
 <!doctype html>
@@ -30,18 +32,18 @@ $siteAlert = Database::instance()->one('SELECT id, message, updated_at FROM site
                 <a href="/">Home</a> |
                 <a href="/<?= Helpers::h($currentUser['username']) ?>">Profile</a> |
                 <a href="/replies">@Replies</a> |
-                <a href="/notifications"><?= Helpers::h($notificationsLabel) ?></a> |
-                <a href="/direct_messages">Direct Messages</a> |
+                <a href="/notifications" data-notifications-link data-count="<?= (int)$unread ?>"><?= Helpers::h($notificationsLabel) ?></a> |
+                <a href="/direct_messages" data-messages-link data-count="<?= (int)$unreadMessages ?>"><?= Helpers::h($messagesLabel) ?></a> |
                 <a href="/settings">Settings</a> |
                 <?php if ((int)$currentUser['is_admin'] === 1): ?>
                     <a href="/admin">Admin</a> |
                 <?php endif; ?>
-                <a href="/public">Help</a> |
+                <a href="/help">Help</a> |
                 <a href="/logout">Sign out</a>
             <?php else: ?>
                 <a href="/login">Sign in</a> |
                 <a href="/register">Join now</a> |
-                <a href="/public">Help</a>
+                <a href="/help">Help</a>
             <?php endif; ?>
         </div>
     </div>
@@ -60,26 +62,15 @@ $siteAlert = Database::instance()->one('SELECT id, message, updated_at FROM site
                 <label for="compose-body">What are you doing?</label>
                 <textarea id="compose-body" name="body" maxlength="140" data-counter-target="#compose-count"></textarea>
                 <div class="compose-tools">
-                    <button type="button" title="Attach images" data-attachment-button><img src="/img/icon_attachment.svg" alt="">Attachment</button>
-                    <button type="button" title="Add GIF" data-panel-toggle="gif-panel"><img src="/img/icon_gif.svg" alt="">GIF</button>
+                    <button type="button" title="Attach media" data-attachment-button><img src="/img/icon_attachment.svg" alt="">Attachment</button>
                     <button type="button" title="Add poll" data-panel-toggle="poll-panel"><img src="/img/icon_poll.svg" alt="">Poll</button>
                     <button type="button" title="Add location" data-panel-toggle="location-panel"><img src="/img/icon_location.svg" alt="">Location</button>
                     <button type="button" title="Schedule post" data-panel-toggle="schedule-panel"><img src="/img/icon_schedule.svg" alt="">Schedule</button>
                 </div>
-                <input type="file" name="attachments[]" accept="image/jpeg,image/png,image/gif,image/webp" multiple class="hidden-file" data-attachment-input>
-                <input type="hidden" name="gif_url" data-gif-url>
+                <input type="file" name="attachments[]" accept="image/jpeg,image/png,image/gif,image/webp,audio/*,video/*,.mp3,.mp4,.mov,.m4a,.aac,.wav,.ogg,.flac,.aiff,.wma,.webm,.ogv,.avi,.wmv,.mkv" multiple class="hidden-file" data-attachment-input>
                 <input type="hidden" name="location_lat" data-location-lat>
                 <input type="hidden" name="location_lng" data-location-lng>
                 <input type="hidden" name="location_label" data-location-label>
-                <div class="compose-panel" data-compose-panel="gif-panel">
-                    <div class="tool-search">
-                        <input type="text" placeholder="Search GIFs" data-gif-query>
-                        <button type="button" data-gif-search>Search</button>
-                    </div>
-                    <div class="gif-results" data-gif-results></div>
-                    <div class="tool-hint">GIF search powered by KLIPY.</div>
-                    <input type="url" placeholder="or paste HTTPS GIF URL" data-gif-paste>
-                </div>
                 <div class="compose-panel" data-compose-panel="poll-panel">
                     <input type="text" name="poll_question" maxlength="120" placeholder="Poll question">
                     <input type="text" name="poll_options[]" maxlength="80" placeholder="Option 1">
@@ -171,7 +162,7 @@ $siteAlert = Database::instance()->one('SELECT id, message, updated_at FROM site
                         <div class="suggestion">
                             <img src="<?= Helpers::avatarUrl($suggestion) ?>" alt="" class="suggestion-avatar">
                             <div class="suggestion-body">
-                                <?= Helpers::renderUserName($suggestion) ?>
+                                <?= Helpers::renderUserName($suggestion) ?> <?= Helpers::followsYouBadge($suggestion) ?>
                                 <div class="suggestion-bio"><?= Helpers::h(Helpers::truncate((string)$suggestion['bio'], 40)) ?></div>
                                 <?php if ($currentUser): ?>
                                     <form action="/follow/<?= Helpers::h($suggestion['username']) ?>" method="post" data-follow-form>
@@ -188,10 +179,28 @@ $siteAlert = Database::instance()->one('SELECT id, message, updated_at FROM site
             <section class="side-footer">
                 <a href="/public">Public Timeline</a> ·
                 <a href="/search">Search</a> ·
-                <a href="/notes/pending">Community Notes</a>
+                <a href="/notes/pending">Community Notes</a> ·
+                <a href="/help">Help</a> ·
+                <a href="/privacy">Privacy</a> ·
+                <a href="/terms">Terms</a>
             </section>
         </aside>
     <?php endif; ?>
+</div>
+
+<footer class="site-footer">
+    <div>
+        <strong><?= Helpers::h($appName) ?></strong>
+        <a href="/public">Public Timeline</a>
+        <a href="/help">Help</a>
+        <a href="/privacy">Privacy Policy</a>
+        <a href="/terms">Terms of Service</a>
+    </div>
+</footer>
+
+<div class="media-lightbox" data-media-lightbox hidden>
+    <button type="button" data-lightbox-close aria-label="Close media">×</button>
+    <div data-lightbox-content></div>
 </div>
 
 <script src="/js/twitkey.js"></script>

@@ -2,7 +2,13 @@
 <div class="content-header">
     <h1><?= Helpers::h($heading ?? 'Timeline') ?></h1>
 </div>
-<div class="timeline" id="timeline">
+<?php
+$basePath = $basePath ?? '/';
+$feedUrl = $basePath === '/'
+    ? '/api/timeline?scope=home'
+    : ($basePath === '/public' ? '/api/timeline?scope=public' : ($basePath === '/replies' ? '/api/timeline?scope=mentions' : ''));
+?>
+<div class="timeline" id="timeline"<?= $feedUrl !== '' ? ' data-realtime-feed="' . Helpers::h($feedUrl) . '" data-realtime-insert="prepend"' : '' ?>>
     <?php if ($tweets === []): ?>
         <div class="empty-state">No tweets yet.</div>
     <?php else: ?>

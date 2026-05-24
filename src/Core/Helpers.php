@@ -231,6 +231,70 @@ final class Helpers
     }
 
     /**
+     * Render safe rich embeds for known URL providers, with generic cards for others.
+     */
+    public static function renderEmbeds(string $body): string
+    {
+        if (preg_match_all('~https?://[^\s<]+~i', $body, $matches) !== 1) {
+            return '';
+        }
+
+        $html = '';
+        foreach (array_slice(array_unique($matches[0]), 0, 3) as $url) {
+            $clean = rtrim($url, '.,;:!?)');
+            if (!filter_var($clean, FILTER_VALIDATE_URL)) {
+                continue;
+            }
+            $host = strtolower((string)(parse_url($clean, PHP_URL_HOST) ?: ''));
+            $path = (string)(parse_url($clean, PHP_URL_PATH) ?: '');
+            $embed = null;
+
+            if (preg_match('/(^|\\.)(youtube\\.com|youtu\\.be)$/', $host) === 1) {
+                $videoId = '';
+                if ($host === 'youtu.be') {
+                    $videoId = trim($path, '/');
+                } else {
+                    parse_str((string)(parse_url($clean, PHP_URL_QUERY) ?: ''), $query);
+                    $videoId = (string)($query['v'] ?? '');
+                    if ($videoId === '' && preg_match('~/shorts/([A-Za-z0-9_-]{6,})~', $path, $m) === 1) {
+                        $videoId = $m[1];
+                    }
+                }
+                if (preg_match('/^[A-Za-z0-9_-]{6,20}$/', $videoId) === 1) {
+                    $embed = '<iframe src="https://www.youtube-nocookie.com/embed/' . self::h($videoId) . '" title="YouTube video" loading="lazy" allowfullscreen></iframe>';
+                }
+            } elseif (preg_match('/(^|\\.)vimeo\\.com$/', $host) === 1 && preg_match('~/([0-9]{6,})~', $path, $m) === 1) {
+                $embed = '<iframe src="https://player.vimeo.com/video/' . self::h($m[1]) . '" title="Vimeo video" loading="lazy" allowfullscreen></iframe>';
+            } elseif ($host === 'open.spotify.com') {
+                $spotifyPath = trim($path, '/');
+                if (preg_match('~^(track|album|playlist|episode|show)/[A-Za-z0-9]+~', $spotifyPath) === 1) {
+                    $embed = '<iframe src="https://open.spotify.com/embed/' . self::h($spotifyPath) . '" title="Spotify embed" loading="lazy"></iframe>';
+                }
+            } elseif ($host === 'soundcloud.com' || str_ends_with($host, '.soundcloud.com')) {
+                $embed = '<iframe src="https://w.soundcloud.com/player/?url=' . rawurlencode($clean) . '" title="SoundCloud embed" loading="lazy"></iframe>';
+            } elseif ($host === 'www.tiktok.com' && preg_match('~/video/([0-9]+)~', $path, $m) === 1) {
+                $embed = '<iframe src="https://www.tiktok.com/embed/v2/' . self::h($m[1]) . '" title="TikTok video" loading="lazy"></iframe>';
+            } elseif (($host === 'twitter.com' || $host === 'x.com') && preg_match('~/status/([0-9]+)~', $path, $m) === 1) {
+                $embed = '<iframe src="https://platform.twitter.com/embed/Tweet.html?id=' . self::h($m[1]) . '" title="Post embed" loading="lazy"></iframe>';
+            } elseif ($host === 'www.instagram.com' && preg_match('~/(p|reel)/([A-Za-z0-9_-]+)~', $path, $m) === 1) {
+                $embed = '<iframe src="https://www.instagram.com/' . self::h($m[1]) . '/' . self::h($m[2]) . '/embed" title="Instagram embed" loading="lazy"></iframe>';
+            }
+
+            if ($embed !== null) {
+                $html .= '<div class="tweet-embed">' . $embed . '</div>';
+                continue;
+            }
+
+            $label = self::truncate($clean, 80);
+            $html .= '<a class="tweet-link-card" href="' . self::h($clean) . '" target="_blank" rel="nofollow noopener">'
+                . '<strong>' . self::h($host ?: 'Link') . '</strong>'
+                . '<span>' . self::h($label) . '</span>'
+                . '</a>';
+        }
+        return $html;
+    }
+
+    /**
      * Render admin, verification, and affiliation badges for a user row.
      *
      * @param array<string, mixed> $user
@@ -271,6 +335,25 @@ final class Helpers
         $display = self::h($user['display_name'] ?? $user['username'] ?? '');
         $lock = (int)($user['is_private'] ?? 0) === 1 ? '<span class="lock-badge" title="Private account">🔒</span>' : '';
         return '<a href="/' . $username . '" class="username">' . $display . '</a>' . self::renderBadges($user) . $lock;
+    }
+
+    /**
+     * Render a small "Follows you" indicator when the shown account follows the viewer.
+     *
+     * @param array<string, mixed> $user
+     */
+    public static function followsYouBadge(array $user): string
+    {
+        $viewer = Auth::user();
+        $userId = (int)($user['id'] ?? $user['user_id'] ?? 0);
+        if (!$viewer || $userId <= 0 || $userId === (int)$viewer['id']) {
+            return '';
+        }
+        $followsViewer = Database::instance()->one(
+            'SELECT id FROM follows WHERE follower_id = :user_id AND following_id = :viewer_id LIMIT 1',
+            ['user_id' => $userId, 'viewer_id' => (int)$viewer['id']]
+        ) !== null;
+        return $followsViewer ? '<span class="follows-you">Follows you</span>' : '';
     }
 
     /**

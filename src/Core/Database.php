@@ -287,6 +287,9 @@ final class Database
         if (!$this->columnExists('users', 'is_system')) {
             $this->pdo->exec('ALTER TABLE users ADD COLUMN is_system INTEGER DEFAULT 0');
         }
+        if (!$this->columnExists('users', 'suspension_reason')) {
+            $this->pdo->exec("ALTER TABLE users ADD COLUMN suspension_reason TEXT DEFAULT ''");
+        }
         foreach ([
             'is_private' => 'INTEGER DEFAULT 0',
             'follow_privacy' => "VARCHAR(20) DEFAULT 'everyone'",
@@ -368,6 +371,7 @@ final class Database
             'CREATE INDEX IF NOT EXISTS idx_poll_votes_poll_id ON poll_votes(poll_id)',
             'CREATE INDEX IF NOT EXISTS idx_follow_requests_target_status ON follow_requests(target_id, status)',
             'CREATE INDEX IF NOT EXISTS idx_follow_requests_requester_status ON follow_requests(requester_id, status)',
+            'CREATE INDEX IF NOT EXISTS idx_direct_messages_recipient_read ON direct_messages(recipient_id, is_read)',
             'CREATE INDEX IF NOT EXISTS idx_site_alerts_active_updated ON site_alerts(is_active, updated_at)',
         ];
 

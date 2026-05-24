@@ -22,7 +22,12 @@
             <td><?= Helpers::h($user['role']) ?></td>
             <td><?= Helpers::h($verifiedLabel) ?></td>
             <td><?= (int)$user['is_admin'] === 1 ? 'yes' : 'no' ?></td>
-            <td><?= (int)$user['is_suspended'] === 1 ? 'yes' : 'no' ?></td>
+            <td>
+                <?= (int)$user['is_suspended'] === 1 ? 'yes' : 'no' ?>
+                <?php if (!empty($user['suspension_reason'])): ?>
+                    <div class="muted"><?= Helpers::h($user['suspension_reason']) ?></div>
+                <?php endif; ?>
+            </td>
             <td><?= Helpers::h($user['created_at']) ?></td>
             <td>
                 <form action="/admin/users/<?= (int)$user['id'] ?>/action" method="post" class="admin-actions">
@@ -32,7 +37,8 @@
                     <button name="action" value="verify_business">Verify Business</button>
                     <button name="action" value="verify_government">Verify Government</button>
                     <button name="action" value="remove_verification">Remove Verification</button>
-                    <button name="action" value="<?= (int)$user['is_suspended'] === 1 ? 'unsuspend' : 'suspend' ?>"><?= (int)$user['is_suspended'] === 1 ? 'Unsuspend' : 'Suspend' ?></button>
+                    <input type="text" name="suspension_reason" maxlength="240" placeholder="Suspension reason">
+                    <button name="action" value="<?= (int)$user['is_suspended'] === 1 ? 'unsuspend' : 'suspend' ?>"><?= (int)$user['is_suspended'] === 1 ? 'Unsuspend' : 'Ban Account' ?></button>
                     <button name="action" value="delete" data-confirm="Delete this account?">Delete Account</button>
                 </form>
             </td>

@@ -11,6 +11,11 @@ WORKDIR /var/www/twitkey
 COPY . .
 
 RUN mkdir -p /data/avatars /data/uploads /data/cache && chmod -R 777 /data
+RUN { \
+    echo "upload_max_filesize=64M"; \
+    echo "post_max_size=72M"; \
+    echo "max_file_uploads=8"; \
+} > /usr/local/etc/php/conf.d/twitkey-uploads.ini
 
 EXPOSE 80 443
 CMD ["sh", "-c", "php-fpm -D && caddy run --config /var/www/twitkey/Caddyfile --adapter caddyfile"]

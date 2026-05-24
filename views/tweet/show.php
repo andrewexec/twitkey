@@ -44,7 +44,7 @@
 <div class="content-header secondary-heading">
     <h1>Replies</h1>
 </div>
-<div class="timeline">
+<div class="timeline" id="replies-timeline" data-realtime-feed="/api/timeline?scope=replies&amp;tweet_id=<?= (int)$tweet['id'] ?>" data-realtime-insert="append">
     <?php if ($replies === []): ?>
         <div class="empty-state">No replies yet.</div>
     <?php else: ?>

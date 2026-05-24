@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS users (
     is_admin     INTEGER DEFAULT 0,
     is_system    INTEGER DEFAULT 0,
     is_suspended INTEGER DEFAULT 0,
+    suspension_reason TEXT DEFAULT '',
     is_private   INTEGER DEFAULT 0,
     follow_privacy TEXT DEFAULT 'everyone' CHECK(follow_privacy IN ('everyone','approve')),
     post_visibility TEXT DEFAULT 'public' CHECK(post_visibility IN ('public','followers')),
@@ -223,6 +224,7 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
 CREATE INDEX IF NOT EXISTS idx_favorites_user_id ON favorites(user_id);
 CREATE INDEX IF NOT EXISTS idx_direct_messages_pair ON direct_messages(sender_id, recipient_id);
+CREATE INDEX IF NOT EXISTS idx_direct_messages_recipient_read ON direct_messages(recipient_id, is_read);
 CREATE INDEX IF NOT EXISTS idx_community_notes_status ON community_notes(status);
 CREATE INDEX IF NOT EXISTS idx_tweet_media_tweet_id ON tweet_media(tweet_id);
 CREATE INDEX IF NOT EXISTS idx_poll_options_poll_id ON poll_options(poll_id);

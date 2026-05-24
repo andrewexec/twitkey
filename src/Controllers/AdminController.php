@@ -80,12 +80,12 @@ final class AdminController
                 'verify_business' => User::setVerification($userId, 'business'),
                 'verify_government' => User::setVerification($userId, 'government'),
                 'remove_verification' => User::setVerification($userId, null),
-                'suspend' => User::setSuspended($userId, true),
+                'suspend' => User::setSuspended($userId, true, (string)($_POST['suspension_reason'] ?? '')),
                 'unsuspend' => User::setSuspended($userId, false),
                 'delete' => User::delete($userId),
                 default => throw new \InvalidArgumentException('Unknown admin action.'),
             };
-            $this->log((int)$admin['id'], $action, 'user', $userId);
+            $this->log((int)$admin['id'], $action, 'user', $userId, (string)($_POST['suspension_reason'] ?? ''));
             Session::flash('success', 'User action applied.');
         } catch (\Throwable $e) {
             Session::flash('error', $e->getMessage());
@@ -198,11 +198,11 @@ final class AdminController
     /**
      * Write an admin action to the audit log.
      */
-    private function log(int $adminId, string $action, string $targetType, int $targetId): void
+    private function log(int $adminId, string $action, string $targetType, int $targetId, string $note = ''): void
     {
         Database::instance()->execute(
-            'INSERT INTO admin_log (admin_id, action, target_type, target_id) VALUES (:admin_id, :action, :target_type, :target_id)',
-            ['admin_id' => $adminId, 'action' => $action, 'target_type' => $targetType, 'target_id' => $targetId]
+            'INSERT INTO admin_log (admin_id, action, target_type, target_id, note) VALUES (:admin_id, :action, :target_type, :target_id, :note)',
+            ['admin_id' => $adminId, 'action' => $action, 'target_type' => $targetType, 'target_id' => $targetId, 'note' => substr(trim($note), 0, 240)]
         );
     }
 }

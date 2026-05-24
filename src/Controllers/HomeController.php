@@ -58,6 +58,30 @@ final class HomeController
     }
 
     /**
+     * Show the help center.
+     */
+    public function help(): void
+    {
+        Helpers::render('home/help', ['title' => 'Help']);
+    }
+
+    /**
+     * Show the privacy policy.
+     */
+    public function privacy(): void
+    {
+        Helpers::render('home/privacy', ['title' => 'Privacy Policy']);
+    }
+
+    /**
+     * Show the terms of service.
+     */
+    public function terms(): void
+    {
+        Helpers::render('home/terms', ['title' => 'Terms of Service']);
+    }
+
+    /**
      * Search tweets and users.
      */
     public function search(): void
@@ -101,6 +125,8 @@ final class HomeController
         }
 
         $messages = [];
+        $messageCount = 0;
+        $sentCount = 0;
         if ($selected) {
             $messages = $db->all(
                 'SELECT dm.*, s.username AS sender_username, s.display_name AS sender_display_name, s.avatar AS sender_avatar,
@@ -113,6 +139,16 @@ final class HomeController
                 ['me' => (int)$user['id'], 'them' => (int)$selected['id']]
             );
             $db->execute('UPDATE direct_messages SET is_read = 1 WHERE recipient_id = :me AND sender_id = :them', ['me' => (int)$user['id'], 'them' => (int)$selected['id']]);
+            $count = $db->one(
+                'SELECT COUNT(*) AS count FROM direct_messages WHERE (sender_id = :me AND recipient_id = :them) OR (sender_id = :them AND recipient_id = :me)',
+                ['me' => (int)$user['id'], 'them' => (int)$selected['id']]
+            );
+            $sent = $db->one(
+                'SELECT COUNT(*) AS count FROM direct_messages WHERE sender_id = :me AND recipient_id = :them',
+                ['me' => (int)$user['id'], 'them' => (int)$selected['id']]
+            );
+            $messageCount = (int)($count['count'] ?? 0);
+            $sentCount = (int)($sent['count'] ?? 0);
         }
 
         Helpers::render('home/dms', [
@@ -121,6 +157,8 @@ final class HomeController
             'selected' => $selected,
             'messages' => $messages,
             'canMessageSelected' => $selected ? User::canMessage($user, $selected) : false,
+            'messageCount' => $messageCount,
+            'sentCount' => $sentCount,
         ]);
     }
 
@@ -134,10 +172,16 @@ final class HomeController
         $recipient = User::findByUsername($user);
         $body = trim((string)($_POST['body'] ?? ''));
         if (!$recipient || $body === '' || strlen($body) > 1000) {
+            if (Helpers::wantsJson()) {
+                Helpers::json(['ok' => false, 'error' => 'Message must be 1-1000 characters and recipient must exist.'], 400);
+            }
             Session::flash('error', 'Message must be 1-1000 characters and recipient must exist.');
             Helpers::redirect('/direct_messages');
         }
         if (!User::canMessage($sender, $recipient)) {
+            if (Helpers::wantsJson()) {
+                Helpers::json(['ok' => false, 'error' => 'You can only message this user if their message privacy allows it.'], 403);
+            }
             Session::flash('error', 'You can only message this user if their message privacy allows it.');
             Helpers::redirect('/direct_messages?user=' . rawurlencode((string)$recipient['username']));
         }
@@ -145,6 +189,25 @@ final class HomeController
             'INSERT INTO direct_messages (sender_id, recipient_id, body) VALUES (:sender_id, :recipient_id, :body)',
             ['sender_id' => (int)$sender['id'], 'recipient_id' => (int)$recipient['id'], 'body' => $body]
         );
+        if (Helpers::wantsJson()) {
+            $message = Database::instance()->one(
+                'SELECT dm.*, s.username AS sender_username, s.display_name AS sender_display_name, s.avatar AS sender_avatar,
+                        s.is_admin AS sender_is_admin, s.is_system AS sender_is_system, s.is_verified AS sender_is_verified, s.is_private AS sender_is_private, s.verified_type AS sender_verified_type
+                 FROM direct_messages dm
+                 JOIN users s ON s.id = dm.sender_id
+                 WHERE dm.id = :id',
+                ['id' => Database::instance()->lastInsertId()]
+            );
+            $count = Database::instance()->one(
+                'SELECT COUNT(*) AS count FROM direct_messages WHERE (sender_id = :me AND recipient_id = :them) OR (sender_id = :them AND recipient_id = :me)',
+                ['me' => (int)$sender['id'], 'them' => (int)$recipient['id']]
+            );
+            Helpers::json([
+                'ok' => true,
+                'html' => $message ? Helpers::renderPartial('partials/dm_message', ['message' => $message, 'currentUser' => $sender]) : '',
+                'count' => (int)($count['count'] ?? 0),
+            ]);
+        }
         Helpers::redirect('/direct_messages?user=' . rawurlencode((string)$recipient['username']));
     }
 }

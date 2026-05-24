@@ -273,11 +273,15 @@ final class User
     /**
      * Set suspended state for a user.
      */
-    public static function setSuspended(int $id, bool $suspended): void
+    public static function setSuspended(int $id, bool $suspended, string $reason = ''): void
     {
+        $reason = $suspended ? substr(trim($reason), 0, 240) : '';
+        if ($suspended && $reason === '') {
+            $reason = 'This account broke the Twitkey Terms of Service.';
+        }
         Database::instance()->execute(
-            'UPDATE users SET is_suspended = :suspended, updated_at = :updated_at WHERE id = :id',
-            ['suspended' => $suspended ? 1 : 0, 'updated_at' => date('Y-m-d H:i:s'), 'id' => $id]
+            'UPDATE users SET is_suspended = :suspended, suspension_reason = :reason, updated_at = :updated_at WHERE id = :id',
+            ['suspended' => $suspended ? 1 : 0, 'reason' => $reason, 'updated_at' => date('Y-m-d H:i:s'), 'id' => $id]
         );
     }
 

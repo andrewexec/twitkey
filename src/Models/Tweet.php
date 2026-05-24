@@ -41,6 +41,17 @@ final class Tweet
     }
 
     /**
+     * Return newer home timeline tweets for polling.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function newerForUser(int $userId, int $sinceId): array
+    {
+        $where = 't.id > :since_id AND t.is_deleted = 0 AND u.is_suspended = 0 AND ' . self::publishedWhere() . ' AND (t.user_id = :user_id OR t.user_id IN (SELECT following_id FROM follows WHERE follower_id = :user_id))';
+        return self::feed($where, ['since_id' => $sinceId, 'user_id' => $userId], 1, null, 20);
+    }
+
+    /**
      * Return the public timeline.
      *
      * @return array<int, array<string, mixed>>
@@ -51,24 +62,49 @@ final class Tweet
     }
 
     /**
+     * Return newer public tweets for polling.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function newerPublic(int $sinceId): array
+    {
+        return self::feed(
+            't.id > :since_id AND t.is_deleted = 0 AND u.is_suspended = 0 AND u.is_private = 0 AND u.post_visibility = :visibility AND ' . self::publishedWhere(),
+            ['since_id' => $sinceId, 'visibility' => 'public'],
+            1,
+            null,
+            20
+        );
+    }
+
+    /**
      * Return tweets for a profile tab.
      *
      * @return array<int, array<string, mixed>>
      */
     public static function forProfile(int $userId, string $tab, int $page, bool $includeSuspended = false): array
     {
-        $params = ['user_id' => $userId];
-        if ($tab === 'favorites') {
-            $where = 't.id IN (SELECT tweet_id FROM favorites WHERE user_id = :user_id) AND t.is_deleted = 0 AND ' . self::publishedWhere();
-        } elseif ($tab === 'replies') {
-            $where = 't.user_id = :user_id AND t.reply_to_id IS NOT NULL AND t.is_deleted = 0 AND ' . self::publishedWhere();
-        } else {
-            $where = 't.user_id = :user_id AND t.is_deleted = 0 AND ' . self::publishedWhere();
-        }
+        [$where, $params] = self::profileWhere($userId, $tab);
         if (!$includeSuspended) {
             $where .= ' AND u.is_suspended = 0';
         }
         return self::feed($where, $params, $page, null);
+    }
+
+    /**
+     * Return newer profile-tab tweets for polling.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function newerForProfile(int $userId, string $tab, int $sinceId, bool $includeSuspended = false): array
+    {
+        [$where, $params] = self::profileWhere($userId, $tab);
+        $where = 't.id > :since_id AND ' . $where;
+        $params['since_id'] = $sinceId;
+        if (!$includeSuspended) {
+            $where .= ' AND u.is_suspended = 0';
+        }
+        return self::feed($where, $params, 1, null, 20);
     }
 
     /**
@@ -101,6 +137,21 @@ final class Tweet
             $params['viewer_id'] = $viewerId;
         }
         return self::feed($where, $params, $page, null);
+    }
+
+    /**
+     * Return newer mention tweets for polling.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function newerMentionsFor(string $username, int $sinceId, ?int $viewerId = null): array
+    {
+        $params = ['since_id' => $sinceId, 'term' => strtolower('%@' . $username . '%')];
+        $where = 't.id > :since_id AND t.is_deleted = 0 AND u.is_suspended = 0 AND ' . self::publishedWhere() . ' AND lower(t.body) LIKE lower(:term) AND ' . self::visibleWhere($viewerId);
+        if ($viewerId !== null) {
+            $params['viewer_id'] = $viewerId;
+        }
+        return self::feed($where, $params, 1, null, 20);
     }
 
     /**
@@ -152,6 +203,24 @@ final class Tweet
         }
         $rows = self::feed($where, ['tweet_id' => $tweetId], 1, null, 200, true, 'ASC');
         return $rows;
+    }
+
+    /**
+     * Return newer replies under a tweet for polling.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function newerRepliesTo(int $tweetId, int $sinceId): array
+    {
+        return self::feed(
+            't.id > :since_id AND t.reply_to_id = :tweet_id AND t.is_deleted = 0 AND ' . self::publishedWhere(),
+            ['since_id' => $sinceId, 'tweet_id' => $tweetId],
+            1,
+            null,
+            50,
+            true,
+            'ASC'
+        );
     }
 
     /**
@@ -282,6 +351,30 @@ final class Tweet
     }
 
     /**
+     * Return visible tweet rows by id for realtime poll refreshes.
+     *
+     * @param array<int, int> $tweetIds
+     * @param array<string, mixed>|null $viewer
+     * @return array<int, array<string, mixed>>
+     */
+    public static function visibleRowsByIds(array $tweetIds, ?array $viewer): array
+    {
+        $tweetIds = array_values(array_unique(array_filter(array_map('intval', $tweetIds), static fn(int $id): bool => $id > 0)));
+        if ($tweetIds === []) {
+            return [];
+        }
+        $params = [];
+        $placeholders = [];
+        foreach ($tweetIds as $index => $tweetId) {
+            $key = 'id' . $index;
+            $placeholders[] = ':' . $key;
+            $params[$key] = $tweetId;
+        }
+        $rows = self::feed('t.id IN (' . implode(',', $placeholders) . ') AND t.is_deleted = 0 AND ' . self::publishedWhere(), $params, 1, null, count($tweetIds), true);
+        return array_values(array_filter($rows, static fn(array $row): bool => self::canBeViewedBy($row, $viewer)));
+    }
+
+    /**
      * Return recent tweets for the admin table.
      *
      * @return array<int, array<string, mixed>>
@@ -313,10 +406,15 @@ final class Tweet
                     u.username, u.display_name, u.email, u.bio, u.location, u.website, u.avatar, u.background,
                     u.role, u.verified_type, u.is_verified, u.is_admin, u.is_system, u.is_suspended, u.is_private, u.follow_privacy, u.post_visibility, u.dm_privacy, u.follower_count, u.following_count, u.tweet_count,
                     u.created_at AS user_created_at,
+                    p.username AS reply_parent_username,
+                    p.body AS reply_parent_body,
+                    p.is_deleted AS reply_parent_deleted,
                     (SELECT cn.body FROM community_notes cn WHERE cn.tweet_id = t.id AND cn.status = 'approved' ORDER BY cn.helpful_votes DESC, cn.id ASC LIMIT 1) AS approved_note_body,
                     (SELECT cn.id FROM community_notes cn WHERE cn.tweet_id = t.id AND cn.status = 'approved' ORDER BY cn.helpful_votes DESC, cn.id ASC LIMIT 1) AS approved_note_id
              FROM tweets t
              JOIN users u ON u.id = t.user_id
+             LEFT JOIN tweets pt ON pt.id = t.reply_to_id
+             LEFT JOIN users p ON p.id = pt.user_id
              WHERE {$where}
              ORDER BY t.id {$direction}
              LIMIT :limit OFFSET :offset"
@@ -459,6 +557,23 @@ final class Tweet
             return '(u.is_private = 0 AND u.post_visibility = \'public\')';
         }
         return '(u.id = :viewer_id OR (u.is_private = 0 AND u.post_visibility = \'public\') OR u.id IN (SELECT following_id FROM follows WHERE follower_id = :viewer_id))';
+    }
+
+    /**
+     * Build the profile-tab WHERE clause.
+     *
+     * @return array{0:string,1:array<string, mixed>}
+     */
+    private static function profileWhere(int $userId, string $tab): array
+    {
+        $params = ['user_id' => $userId];
+        if ($tab === 'favorites') {
+            return ['t.id IN (SELECT tweet_id FROM favorites WHERE user_id = :user_id) AND t.is_deleted = 0 AND ' . self::publishedWhere(), $params];
+        }
+        if ($tab === 'replies') {
+            return ['t.user_id = :user_id AND t.reply_to_id IS NOT NULL AND t.is_deleted = 0 AND ' . self::publishedWhere(), $params];
+        }
+        return ['t.user_id = :user_id AND t.is_deleted = 0 AND ' . self::publishedWhere(), $params];
     }
 
     /**

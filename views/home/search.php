@@ -17,7 +17,7 @@
                 <div class="user-result">
                     <img src="<?= Helpers::avatarUrl($user) ?>" class="small-avatar" alt="">
                     <div>
-                        <?= Helpers::renderUserName($user) ?>
+                        <?= Helpers::renderUserName($user) ?> <?= Helpers::followsYouBadge($user) ?>
                         <div class="muted">@<?= Helpers::h($user['username']) ?> · <?= Helpers::h(Helpers::truncate((string)$user['bio'], 80)) ?></div>
                     </div>
                 </div>

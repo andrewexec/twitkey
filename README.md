@@ -42,24 +42,28 @@ Docker Compose reads `.env` in two ways here: it uses `HTTP_PORT` and `HTTPS_POR
 | `DB_PASS` | `changeme` | MySQL password. |
 | `ADMIN_SETUP_TOKEN` | unset | One-time first-admin setup token. |
 | `MAX_AVATAR_SIZE_KB` | `2048` | Maximum uploaded avatar size. |
-| `MAX_ATTACHMENT_SIZE_KB` | `5120` | Maximum tweet attachment size. |
-| `KLIPY_API_KEY` | unset | Server-side Klipy API key for GIF search. Do not expose it in frontend code. |
-| `GIF_API_SEARCH_URL` | `https://api.klipy.com/v2/search?q={query}&key={key}&limit=12&media_filter=gif,tinygif,mediumgif,nanogif,preview&contentfilter=low` | Klipy GIF search endpoint. Replace `{query}` and `{key}` are filled server-side. |
+| `MAX_ATTACHMENT_SIZE_KB` | `51200` | Maximum tweet attachment size. |
+| `KLIPY_API_KEY` | unset | Server-side Klipy API key for legacy GIF API support. Do not expose it in frontend code. |
+| `GIF_API_SEARCH_URL` | `https://api.klipy.com/v2/search?q={query}&key={key}&limit=12&media_filter=gif,tinygif,mediumgif,nanogif,preview&contentfilter=low` | Legacy Klipy GIF search endpoint. `{query}` and `{key}` are filled server-side if older clients call the API. |
 | `LOCATION_SEARCH_URL` | `https://nominatim.openstreetmap.org/search?format=json&limit=6&q={query}` | Location search endpoint. Replace `{query}` with the encoded search term. Respect the provider usage policy or swap in your own endpoint. |
 
 ## Features
 
 - 140-character tweets, replies, classic RT retweets, favorites, follows, @replies, search, trends, profile pages, public and home timelines.
-- Polls, image attachments, Klipy-powered GIF search, map-picked locations, and scheduled posts from the classic compose box.
-- Direct messages, notifications, pagination, avatar uploads, and profile settings.
+- Polls, image/audio/video attachments, pasted image uploads, map-picked locations, and scheduled posts from the classic compose box.
+- Near-realtime polling for new posts, direct messages, notification counts, and poll result updates.
+- Direct messages with unread badges, sent-message counters, notifications, pagination, avatar uploads, and profile settings.
 - Private accounts, approved follow requests, follower-only posts, and message privacy controls.
+- “Follows you” indicators beside user names when applicable.
 - Admin-managed site alert banner with live client refresh.
 - Community Notes with eligibility, helpful/unhelpful voting, automatic approval/rejection, admin moderation, and misleading-note flags.
-- Admin dashboard with user moderation, tweet moderation, note moderation, verification grants, suspensions, account deletion, and audit logging.
+- Admin dashboard with user moderation, tweet moderation, note moderation, verification grants, suspension reasons, account deletion, and audit logging.
+- Help, Privacy Policy, and Terms of Service pages plus a global footer.
+- Safe rich embeds for known providers, generic link cards for other URLs, and click-to-expand image/GIF/video media previews.
 - Verified Business and Verified Government badges rendered through the shared badge helper.
 - Business affiliation invites, acceptance/decline, revocation, one-business-at-a-time enforcement, and mini-avatar badges wherever names render.
 - SQLite first-run bootstrap with schema and index creation. MySQL can be selected with `DB_DRIVER=mysql`.
-- CSRF protection, bcrypt passwords, session hardening, prepared PDO queries, server-side tweet length validation, rate limiting, and safe GD avatar resizing.
+- CSRF protection, bcrypt passwords, session hardening, prepared PDO queries, server-side escaping, security headers, server-side tweet length validation, rate limiting, and safe GD avatar resizing.
 
 ## Development Checks
 
