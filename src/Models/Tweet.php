@@ -407,8 +407,8 @@ final class Tweet
                     u.role, u.verified_type, u.is_verified, u.is_admin, u.is_system, u.is_suspended, u.is_private, u.follow_privacy, u.post_visibility, u.dm_privacy, u.follower_count, u.following_count, u.tweet_count,
                     u.created_at AS user_created_at,
                     p.username AS reply_parent_username,
-                    p.body AS reply_parent_body,
-                    p.is_deleted AS reply_parent_deleted,
+                    pt.body AS reply_parent_body,
+                    pt.is_deleted AS reply_parent_deleted,
                     (SELECT cn.body FROM community_notes cn WHERE cn.tweet_id = t.id AND cn.status = 'approved' ORDER BY cn.helpful_votes DESC, cn.id ASC LIMIT 1) AS approved_note_body,
                     (SELECT cn.id FROM community_notes cn WHERE cn.tweet_id = t.id AND cn.status = 'approved' ORDER BY cn.helpful_votes DESC, cn.id ASC LIMIT 1) AS approved_note_id
              FROM tweets t
