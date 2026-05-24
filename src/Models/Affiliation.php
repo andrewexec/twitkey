@@ -53,7 +53,7 @@ final class Affiliation
     public static function pendingForUser(int $userId): array
     {
         return Database::instance()->all(
-            'SELECT a.*, b.username, b.display_name, b.avatar, b.is_admin, b.verified_type
+            'SELECT a.*, b.username, b.display_name, b.avatar, b.is_admin, b.is_system, b.is_verified, b.is_private, b.verified_type
              FROM affiliations a
              JOIN users b ON b.id = a.business_id
              WHERE a.affiliated_id = :id AND a.status = :status
@@ -70,7 +70,7 @@ final class Affiliation
     public static function sentByBusiness(int $businessId): array
     {
         return Database::instance()->all(
-            'SELECT a.*, u.username, u.display_name, u.avatar, u.is_admin, u.verified_type
+            'SELECT a.*, u.username, u.display_name, u.avatar, u.is_admin, u.is_system, u.is_verified, u.is_private, u.verified_type
              FROM affiliations a
              JOIN users u ON u.id = a.affiliated_id
              WHERE a.business_id = :id
@@ -92,6 +92,7 @@ final class Affiliation
             }
             $db->execute('UPDATE affiliations SET status = :revoked WHERE affiliated_id = :user_id AND status = :accepted', ['revoked' => 'revoked', 'user_id' => $userId, 'accepted' => 'accepted']);
             $db->execute('UPDATE affiliations SET status = :accepted WHERE id = :id', ['accepted' => 'accepted', 'id' => $affiliationId]);
+            self::syncAutoVerification($userId);
         });
     }
 
@@ -111,9 +112,47 @@ final class Affiliation
      */
     public static function revoke(int $affiliationId, int $actorId): void
     {
-        Database::instance()->execute(
+        $db = Database::instance();
+        $db->execute(
             'UPDATE affiliations SET status = :status WHERE id = :id AND (business_id = :actor_id OR affiliated_id = :actor_id)',
             ['status' => 'revoked', 'id' => $affiliationId, 'actor_id' => $actorId]
+        );
+        $row = $db->one('SELECT affiliated_id FROM affiliations WHERE id = :id', ['id' => $affiliationId]);
+        if ($row) {
+            self::syncAutoVerification((int)$row['affiliated_id']);
+        }
+    }
+
+    /**
+     * Keep normal verification in sync with accepted business affiliation.
+     */
+    private static function syncAutoVerification(int $userId): void
+    {
+        $db = Database::instance();
+        $hasAcceptedBusiness = $db->one(
+            "SELECT a.id
+             FROM affiliations a
+             JOIN users b ON b.id = a.business_id
+             WHERE a.affiliated_id = :user_id
+               AND a.status = :status
+               AND b.verified_type = :business
+             LIMIT 1",
+            ['user_id' => $userId, 'status' => 'accepted', 'business' => 'business']
+        ) !== null;
+
+        if ($hasAcceptedBusiness) {
+            $db->execute(
+                'UPDATE users SET is_verified = 1, auto_verified_by_affiliation = 1, updated_at = :updated_at WHERE id = :id AND verified_type IS NULL',
+                ['updated_at' => date('Y-m-d H:i:s'), 'id' => $userId]
+            );
+            return;
+        }
+
+        $db->execute(
+            'UPDATE users
+             SET is_verified = 0, auto_verified_by_affiliation = 0, updated_at = :updated_at
+             WHERE id = :id AND verified_type IS NULL AND auto_verified_by_affiliation = 1',
+            ['updated_at' => date('Y-m-d H:i:s'), 'id' => $userId]
         );
     }
 }

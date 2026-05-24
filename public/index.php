@@ -22,10 +22,12 @@ use Twitkey\Controllers\HomeController;
 use Twitkey\Controllers\NotificationsController;
 use Twitkey\Controllers\TweetController;
 use Twitkey\Controllers\UserController;
+use Twitkey\Core\Auth;
 use Twitkey\Core\Database;
 use Twitkey\Core\Helpers;
 use Twitkey\Core\Router;
 use Twitkey\Core\Session;
+use Twitkey\Models\User;
 
 Helpers::loadEnv(TWITKEY_ROOT . '/.env');
 if (Helpers::env('APP_DEBUG', 'false') === 'true') {
@@ -43,6 +45,23 @@ header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-sr
 Session::start();
 Database::instance();
 
+$requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+$requestMethod = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+$currentUser = Auth::user();
+$maintenanceAllowed = ($requestPath === '/login' && in_array($requestMethod, ['GET', 'POST'], true))
+    || ($requestPath === '/logout' && $requestMethod === 'GET');
+if (Helpers::maintenanceModeEnabled() && !User::isOwnerRow($currentUser) && !$maintenanceAllowed) {
+    http_response_code(503);
+    header('Retry-After: 3600');
+    Helpers::render('auth/maintenance', ['user' => $currentUser, 'title' => 'Maintenance Mode'], false);
+    exit;
+}
+if ($currentUser && ((int)($currentUser['is_suspended'] ?? 0) === 1 || (int)($currentUser['is_deleted'] ?? 0) === 1) && $requestPath !== '/logout') {
+    http_response_code(403);
+    Helpers::render('auth/suspended', ['user' => $currentUser, 'title' => 'Account Suspended'], false);
+    exit;
+}
+
 $router = new Router();
 $router->add('GET', '/', [HomeController::class, 'timeline']);
 $router->add('POST', '/', [TweetController::class, 'create']);
@@ -56,6 +75,9 @@ $router->add('POST', '/login', [AuthController::class, 'login']);
 $router->add('GET', '/register', [AuthController::class, 'registerForm']);
 $router->add('POST', '/register', [AuthController::class, 'register']);
 $router->add('GET', '/logout', [AuthController::class, 'logout']);
+$router->add('POST', '/accounts/add', [AuthController::class, 'addAccount']);
+$router->add('POST', '/accounts/switch/{id}', [AuthController::class, 'switchAccount']);
+$router->add('POST', '/accounts/remove/{id}', [AuthController::class, 'removeAccount']);
 $router->add('GET', '/settings', [UserController::class, 'settings']);
 $router->add('POST', '/settings', [UserController::class, 'updateSettings']);
 $router->add('GET', '/settings/affiliations', [UserController::class, 'affiliations']);
@@ -79,6 +101,7 @@ $router->add('POST', '/tweet/{id}/note', [TweetController::class, 'addNote']);
 $router->add('POST', '/note/{id}/vote', [TweetController::class, 'voteNote']);
 $router->add('GET', '/admin', [AdminController::class, 'dashboard']);
 $router->add('POST', '/admin/site-alert', [AdminController::class, 'siteAlert']);
+$router->add('POST', '/admin/maintenance', [AdminController::class, 'maintenance']);
 $router->add('GET', '/admin/users', [AdminController::class, 'users']);
 $router->add('POST', '/admin/users/{id}/action', [AdminController::class, 'userAction']);
 $router->add('GET', '/admin/tweets', [AdminController::class, 'tweets']);

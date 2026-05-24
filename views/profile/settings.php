@@ -7,6 +7,9 @@
     <label>Full name
         <input type="text" name="display_name" maxlength="80" value="<?= Helpers::h($user['display_name']) ?>" required>
     </label>
+    <label>Email
+        <input type="email" name="email" maxlength="190" value="<?= Helpers::h($user['email']) ?>" required>
+    </label>
     <label>Bio
         <textarea name="bio" maxlength="160"><?= Helpers::h($user['bio']) ?></textarea>
     </label>
@@ -49,8 +52,56 @@
         </label>
         <div class="tool-hint">Private account mode forces approved follows and followers-only posts.</div>
     </div>
+    <div class="settings-section">
+        <h2>Theme</h2>
+        <label>Site theme
+            <select name="theme">
+                <?php foreach (['classic' => 'Classic 2009', 'night' => 'Night', 'forest' => 'Forest', 'ruby' => 'Ruby', 'high_contrast' => 'High contrast'] as $themeValue => $themeLabel): ?>
+                    <option value="<?= Helpers::h($themeValue) ?>"<?= ($user['theme'] ?? 'classic') === $themeValue ? ' selected' : '' ?>><?= Helpers::h($themeLabel) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </label>
+    </div>
     <button type="submit" class="primary-button">Save settings</button>
 </form>
+
+<div class="content-header secondary-heading">
+    <h1>Account Switching</h1>
+</div>
+<div class="account-switcher-settings">
+    <?php foreach (($linkedAccounts ?? []) as $account): ?>
+        <div class="account-switch-row<?= (int)$account['id'] === (int)$user['id'] ? ' active' : '' ?>">
+            <span class="avatar-frame small-avatar-frame">
+                <img src="<?= Helpers::avatarUrl($account) ?>" class="small-avatar" alt="">
+                <?= Helpers::adminAvatarBadge($account) ?>
+            </span>
+            <div>
+                <?= Helpers::renderUserName($account) ?>
+                <div class="muted">@<?= Helpers::h($account['username']) ?><?= (int)$account['id'] === (int)$user['id'] ? ' · current' : '' ?></div>
+            </div>
+            <?php if ((int)$account['id'] !== (int)$user['id']): ?>
+                <form action="/accounts/switch/<?= (int)$account['id'] ?>" method="post">
+                    <?= Helpers::csrfField() ?>
+                    <button type="submit" class="mini-button">Switch</button>
+                </form>
+                <form action="/accounts/remove/<?= (int)$account['id'] ?>" method="post">
+                    <?= Helpers::csrfField() ?>
+                    <button type="submit" class="mini-button">Remove</button>
+                </form>
+            <?php endif; ?>
+        </div>
+    <?php endforeach; ?>
+    <form action="/accounts/add" method="post" class="settings-form compact-form account-add-form">
+        <?= Helpers::csrfField() ?>
+        <label>Username or email
+            <input type="text" name="login" autocomplete="username">
+        </label>
+        <label>Password
+            <input type="password" name="password" autocomplete="current-password">
+        </label>
+        <button type="submit" class="primary-button">Add account</button>
+    </form>
+</div>
 
 <div class="content-header secondary-heading">
     <h1>Affiliated Accounts</h1>

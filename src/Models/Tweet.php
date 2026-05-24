@@ -180,7 +180,7 @@ final class Tweet
         if ((int)($viewer['is_admin'] ?? 0) === 1 || ($viewer && (int)$viewer['id'] === (int)$tweet['user_id'])) {
             return true;
         }
-        if ((int)($tweet['is_suspended'] ?? 0) === 1) {
+        if ((int)($tweet['is_suspended'] ?? 0) === 1 || (int)($tweet['user_is_deleted'] ?? 0) === 1) {
             return false;
         }
         $followersOnly = (int)($tweet['is_private'] ?? 0) === 1 || ($tweet['post_visibility'] ?? 'public') === 'followers';
@@ -400,11 +400,14 @@ final class Tweet
         if (!$includeSuspended && !str_contains($where, 'u.is_suspended')) {
             $where .= ' AND u.is_suspended = 0';
         }
+        if (!$includeSuspended && !str_contains($where, 'u.is_deleted')) {
+            $where .= ' AND u.is_deleted = 0';
+        }
 
         $stmt = Database::instance()->pdo()->prepare(
             "SELECT t.*,
                     u.username, u.display_name, u.email, u.bio, u.location, u.website, u.avatar, u.background,
-                    u.role, u.verified_type, u.is_verified, u.is_admin, u.is_system, u.is_suspended, u.is_private, u.follow_privacy, u.post_visibility, u.dm_privacy, u.follower_count, u.following_count, u.tweet_count,
+                    u.role, u.verified_type, u.is_verified, u.is_admin, u.is_system, u.is_suspended, u.is_deleted AS user_is_deleted, u.is_private, u.follow_privacy, u.post_visibility, u.dm_privacy, u.follower_count, u.following_count, u.tweet_count,
                     u.created_at AS user_created_at,
                     p.username AS reply_parent_username,
                     pt.body AS reply_parent_body,

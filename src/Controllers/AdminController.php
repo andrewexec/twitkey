@@ -32,7 +32,10 @@ final class AdminController
             ],
             'logs' => $db->all('SELECT l.*, u.username FROM admin_log l JOIN users u ON u.id = l.admin_id ORDER BY l.created_at DESC LIMIT 10'),
             'siteAlert' => $db->one('SELECT * FROM site_alerts ORDER BY updated_at DESC, id DESC LIMIT 1'),
+            'maintenanceMode' => Helpers::maintenanceModeEnabled(),
+            'isOwner' => User::isOwnerRow(Auth::user()),
             'wideLayout' => true,
+            'adminLayout' => true,
         ]);
     }
 
@@ -56,12 +59,32 @@ final class AdminController
     }
 
     /**
+     * Toggle site maintenance mode. Only the configured owner can do this.
+     */
+    public function maintenance(): void
+    {
+        Helpers::verifyCsrf();
+        $admin = Auth::requireAdmin();
+        if (!User::isOwnerRow($admin)) {
+            http_response_code(403);
+            Session::flash('error', 'Only the Twitkey owner can change maintenance mode.');
+            Helpers::redirect('/admin');
+        }
+
+        $enabled = (string)($_POST['maintenance_mode'] ?? '0') === '1';
+        Helpers::setAppSetting('maintenance_mode', $enabled ? '1' : '0', (int)$admin['id']);
+        $this->log((int)$admin['id'], $enabled ? 'maintenance_enable' : 'maintenance_disable', 'site', 0);
+        Session::flash('success', $enabled ? 'Maintenance mode enabled.' : 'Maintenance mode disabled.');
+        Helpers::redirect('/admin');
+    }
+
+    /**
      * Show manageable users.
      */
     public function users(): void
     {
         Auth::requireAdmin();
-        Helpers::render('admin/users', ['title' => 'Manage Users', 'users' => User::adminList(Helpers::page()), 'page' => Helpers::page(), 'wideLayout' => true]);
+        Helpers::render('admin/users', ['title' => 'Manage Users', 'users' => User::adminList(Helpers::page()), 'page' => Helpers::page(), 'wideLayout' => true, 'adminLayout' => true]);
     }
 
     /**
@@ -74,6 +97,9 @@ final class AdminController
         $userId = (int)$id;
         $action = (string)($_POST['action'] ?? '');
         try {
+            if ($action === 'revoke_admin' && $userId === (int)$admin['id']) {
+                throw new \RuntimeException('Admins cannot revoke their own admin access.');
+            }
             match ($action) {
                 'grant_admin' => User::setAdmin($userId, true),
                 'revoke_admin' => User::setAdmin($userId, false),
@@ -83,7 +109,9 @@ final class AdminController
                 'remove_verification' => User::setVerification($userId, null),
                 'suspend' => User::setSuspended($userId, true, (string)($_POST['suspension_reason'] ?? '')),
                 'unsuspend' => User::setSuspended($userId, false),
-                'delete' => User::delete($userId),
+                'delete' => User::delete($userId, (string)($_POST['suspension_reason'] ?? '')),
+                'change_username' => User::changeUsername($userId, (string)($_POST['new_username'] ?? '')),
+                'reset_password' => User::setPassword($userId, (string)($_POST['new_password'] ?? '')),
                 default => throw new \InvalidArgumentException('Unknown admin action.'),
             };
             $this->log((int)$admin['id'], $action, 'user', $userId, (string)($_POST['suspension_reason'] ?? ''));
@@ -100,7 +128,7 @@ final class AdminController
     public function tweets(): void
     {
         Auth::requireAdmin();
-        Helpers::render('admin/tweets', ['title' => 'Manage Tweets', 'tweets' => Tweet::adminList(Helpers::page()), 'page' => Helpers::page(), 'wideLayout' => true]);
+        Helpers::render('admin/tweets', ['title' => 'Manage Tweets', 'tweets' => Tweet::adminList(Helpers::page()), 'page' => Helpers::page(), 'wideLayout' => true, 'adminLayout' => true]);
     }
 
     /**
@@ -137,7 +165,7 @@ final class AdminController
     public function notes(): void
     {
         Auth::requireAdmin();
-        Helpers::render('admin/notes', ['title' => 'Community Notes', 'notes' => CommunityNote::adminList(Helpers::page()), 'page' => Helpers::page(), 'wideLayout' => true]);
+        Helpers::render('admin/notes', ['title' => 'Community Notes', 'notes' => CommunityNote::adminList(Helpers::page()), 'page' => Helpers::page(), 'wideLayout' => true, 'adminLayout' => true]);
     }
 
     /**

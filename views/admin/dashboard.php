@@ -27,6 +27,21 @@
     </label>
     <button type="submit" class="primary-button">Update alert</button>
 </form>
+<h2>Maintenance Mode</h2>
+<div class="maintenance-admin-panel">
+    <p>Current status: <strong><?= !empty($maintenanceMode) ? 'enabled' : 'disabled' ?></strong></p>
+    <?php if (!empty($isOwner)): ?>
+        <form action="/admin/maintenance" method="post" class="settings-form compact-form">
+            <?= Helpers::csrfField() ?>
+            <input type="hidden" name="maintenance_mode" value="<?= !empty($maintenanceMode) ? '0' : '1' ?>">
+            <button type="submit" class="primary-button" data-confirm="<?= !empty($maintenanceMode) ? 'Disable maintenance mode?' : 'Enable maintenance mode? Only the owner will be able to access the site.' ?>">
+                <?= !empty($maintenanceMode) ? 'Disable maintenance mode' : 'Enable maintenance mode' ?>
+            </button>
+        </form>
+    <?php else: ?>
+        <div class="empty-state">Only the Twitkey owner can change maintenance mode.</div>
+    <?php endif; ?>
+</div>
 <h2>Recent Admin Actions</h2>
 <?php if ($logs === []): ?>
     <div class="empty-state">No admin actions logged.</div>

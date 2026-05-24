@@ -17,10 +17,15 @@ CREATE TABLE IF NOT EXISTS users (
     is_system    INTEGER DEFAULT 0,
     is_suspended INTEGER DEFAULT 0,
     suspension_reason TEXT DEFAULT '',
+    moderation_reason TEXT DEFAULT '',
+    moderation_reviewed_at TEXT DEFAULT NULL,
+    is_deleted   INTEGER DEFAULT 0,
     is_private   INTEGER DEFAULT 0,
     follow_privacy TEXT DEFAULT 'everyone' CHECK(follow_privacy IN ('everyone','approve')),
     post_visibility TEXT DEFAULT 'public' CHECK(post_visibility IN ('public','followers')),
     dm_privacy TEXT DEFAULT 'mutuals' CHECK(dm_privacy IN ('everyone','mutuals','none')),
+    theme TEXT DEFAULT 'classic' CHECK(theme IN ('classic','night','forest','ruby','high_contrast')),
+    auto_verified_by_affiliation INTEGER DEFAULT 0,
     follower_count   INTEGER DEFAULT 0,
     following_count  INTEGER DEFAULT 0,
     tweet_count      INTEGER DEFAULT 0,
@@ -209,6 +214,13 @@ CREATE TABLE IF NOT EXISTS site_alerts (
     updated_by INTEGER DEFAULT NULL REFERENCES users(id),
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS app_settings (
+    setting_key   VARCHAR(190) PRIMARY KEY,
+    setting_value TEXT NOT NULL DEFAULT '',
+    updated_by    INTEGER DEFAULT NULL REFERENCES users(id),
+    updated_at    TEXT DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_tweets_user_id ON tweets(user_id);

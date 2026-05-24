@@ -10,6 +10,14 @@ $notificationsLabel = $unread > 0 ? '(' . ($unread > 99 ? '99+' : (string)$unrea
 $unreadMessages = $currentUser ? (int)(Database::instance()->one('SELECT COUNT(*) AS count FROM direct_messages WHERE recipient_id = :id AND is_read = 0', ['id' => (int)$currentUser['id']])['count'] ?? 0) : 0;
 $messagesLabel = $unreadMessages > 0 ? '(' . ($unreadMessages > 99 ? '99+' : (string)$unreadMessages) . ') Direct Messages' : 'Direct Messages';
 $siteAlert = Database::instance()->one('SELECT id, message, updated_at FROM site_alerts WHERE is_active = 1 AND message <> :empty ORDER BY updated_at DESC, id DESC LIMIT 1', ['empty' => '']);
+$theme = (string)($currentUser['theme'] ?? 'classic');
+if (!in_array($theme, ['classic', 'night', 'forest', 'ruby', 'high_contrast'], true)) {
+    $theme = 'classic';
+}
+$bodyClasses = ['theme-' . $theme];
+if (!empty($adminLayout)) {
+    $bodyClasses[] = 'admin-mode';
+}
 ?>
 <!doctype html>
 <html lang="en">
@@ -20,7 +28,7 @@ $siteAlert = Database::instance()->one('SELECT id, message, updated_at FROM site
     <title><?= Helpers::h($title ?? $appName) ?> / <?= Helpers::h($appName) ?></title>
     <link rel="stylesheet" href="/css/twitkey.css">
 </head>
-<body>
+<body class="<?= Helpers::h(implode(' ', $bodyClasses)) ?>">
 <div class="topbar">
     <div class="topbar-inner">
         <a class="brand" href="/">
@@ -53,6 +61,7 @@ $siteAlert = Database::instance()->one('SELECT id, message, updated_at FROM site
     <div class="site-alert-inner" data-site-alert-message><?= $siteAlert ? Helpers::h($siteAlert['message']) : '' ?></div>
 </div>
 
+<?php if (empty($adminLayout)): ?>
 <div class="subheader">
     <div class="subheader-inner">
         <?php if ($currentUser): ?>
@@ -116,6 +125,7 @@ $siteAlert = Database::instance()->one('SELECT id, message, updated_at FROM site
         <?php endif; ?>
     </div>
 </div>
+<?php endif; ?>
 
 <div class="page-wrap<?= !empty($hideSidebar) ? ' page-wrap-centered' : '' ?><?= !empty($wideLayout) ? ' page-wrap-wide' : '' ?>">
     <main class="main-col<?= !empty($hideSidebar) ? ' main-col-centered' : '' ?><?= !empty($wideLayout) ? ' main-col-wide' : '' ?>">
@@ -198,6 +208,7 @@ $siteAlert = Database::instance()->one('SELECT id, message, updated_at FROM site
     <?php endif; ?>
 </div>
 
+<?php if (empty($adminLayout)): ?>
 <footer class="site-footer">
     <div>
         <strong><?= Helpers::h($appName) ?></strong>
@@ -207,6 +218,7 @@ $siteAlert = Database::instance()->one('SELECT id, message, updated_at FROM site
         <a href="/terms">Terms of Service</a>
     </div>
 </footer>
+<?php endif; ?>
 
 <div class="media-lightbox" data-media-lightbox hidden>
     <button type="button" data-lightbox-close aria-label="Close media">×</button>
