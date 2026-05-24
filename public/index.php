@@ -26,7 +26,6 @@ use Twitkey\Core\Database;
 use Twitkey\Core\Helpers;
 use Twitkey\Core\Router;
 use Twitkey\Core\Session;
-use Twitkey\Models\CommunityNote;
 
 Helpers::loadEnv(TWITKEY_ROOT . '/.env');
 if (Helpers::env('APP_DEBUG', 'false') === 'true') {
@@ -36,7 +35,6 @@ if (Helpers::env('APP_DEBUG', 'false') === 'true') {
 
 Session::start();
 Database::instance();
-CommunityNote::autoModerate();
 
 $router = new Router();
 $router->add('GET', '/', [HomeController::class, 'timeline']);
@@ -76,6 +74,7 @@ $router->add('POST', '/admin/notes/{id}/action', [AdminController::class, 'noteA
 $router->add('GET', '/admin/setup', [AdminController::class, 'setup']);
 $router->add('GET', '/api/username', [ApiController::class, 'username']);
 $router->add('GET', '/api/suggest', [ApiController::class, 'suggest']);
+$router->add('GET', '/media/{file}', [ApiController::class, 'media']);
 $router->add('GET', '/{username}/followers', [UserController::class, 'followers']);
 $router->add('GET', '/{username}/following', [UserController::class, 'following']);
 $router->add('GET', '/{username}', [UserController::class, 'profile']);

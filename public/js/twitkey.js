@@ -172,17 +172,32 @@
                     return;
                 }
                 event.preventDefault();
+                const button = form.querySelector('button[type="submit"]');
+                const oldText = button ? button.textContent : '';
+                if (button) {
+                    button.disabled = true;
+                    button.textContent = 'posting...';
+                }
                 try {
                     const data = await jsonFetch(form.action, { method: 'POST', body: new FormData(form) });
                     const row = form.closest('.tweet-row');
                     if (row && data.html) {
                         row.insertAdjacentHTML('afterend', data.html);
                         wireDynamic(row.nextElementSibling);
+                        const count = row.querySelector('.reply-count');
+                        if (count) {
+                            count.textContent = String(Number(count.textContent || '0') + 1);
+                        }
                     }
                     form.reset();
                     form.classList.remove('open');
                 } catch (error) {
                     alert(error.message);
+                } finally {
+                    if (button) {
+                        button.disabled = false;
+                        button.textContent = oldText;
+                    }
                 }
             });
         });

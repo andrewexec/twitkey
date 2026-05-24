@@ -186,7 +186,7 @@ final class Database
      */
     private function ensureDataDirectories(): void
     {
-        foreach ([$this->dataDir(), $this->dataDir() . '/avatars', $this->dataDir() . '/cache'] as $dir) {
+        foreach ([$this->dataDir(), $this->dataDir() . '/avatars', $this->dataDir() . '/uploads', $this->dataDir() . '/cache'] as $dir) {
             if (!is_dir($dir)) {
                 mkdir($dir, 0777, true);
             }

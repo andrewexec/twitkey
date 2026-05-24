@@ -186,7 +186,18 @@ final class Helpers
     public static function avatarUrl(?array $user): string
     {
         $avatar = $user['avatar'] ?? null;
-        return $avatar ? '/avatars/' . rawurlencode((string)$avatar) : '/img/default_avatar.png';
+        return $avatar ? '/media/' . rawurlencode((string)$avatar) : '/img/default_avatar.png';
+    }
+
+    /**
+     * Return the public profile banner URL for a user row.
+     *
+     * @param array<string, mixed>|null $user
+     */
+    public static function bannerUrl(?array $user): ?string
+    {
+        $banner = $user['background'] ?? null;
+        return $banner ? '/media/' . rawurlencode((string)$banner) : null;
     }
 
     /**
@@ -228,13 +239,13 @@ final class Helpers
     {
         $html = '';
         if ((int)($user['is_admin'] ?? 0) === 1) {
-            $html .= '<span class="badge badge-admin" title="Twitkey Admin">⚙ Admin</span>';
+            $html .= '<img src="/img/admin_badge.png" class="image-badge admin-image-badge" title="Administrator" alt="Administrator">';
         }
         if (($user['verified_type'] ?? null) === 'business') {
-            $html .= '<span class="badge badge-verified-biz" title="Verified Business">✔ Business</span>';
+            $html .= '<img src="/img/verified_badge.webp" class="image-badge verified-image-badge" title="Verified Business" alt="Verified Business">';
         }
         if (($user['verified_type'] ?? null) === 'government') {
-            $html .= '<span class="badge badge-verified-gov" title="Verified Government">✔ Government</span>';
+            $html .= '<img src="/img/verified_badge.webp" class="image-badge verified-image-badge" title="Verified Government" alt="Verified Government">';
         }
 
         $affiliation = self::acceptedAffiliation((int)($user['id'] ?? 0));

@@ -82,7 +82,8 @@ final class User
     {
         Database::instance()->execute(
             'UPDATE users
-             SET display_name = :display_name, bio = :bio, location = :location, website = :website, avatar = COALESCE(:avatar, avatar), updated_at = :updated_at
+             SET display_name = :display_name, bio = :bio, location = :location, website = :website,
+                 avatar = COALESCE(:avatar, avatar), background = COALESCE(:background, background), updated_at = :updated_at
              WHERE id = :id',
             [
                 'display_name' => $fields['display_name'] ?? '',
@@ -90,6 +91,7 @@ final class User
                 'location' => $fields['location'] ?? '',
                 'website' => $fields['website'] ?? '',
                 'avatar' => $fields['avatar'] ?? null,
+                'background' => $fields['background'] ?? null,
                 'updated_at' => date('Y-m-d H:i:s'),
                 'id' => $id,
             ]

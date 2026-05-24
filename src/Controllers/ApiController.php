@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Twitkey\Controllers;
 
+use Twitkey\Core\Database;
 use Twitkey\Core\Helpers;
 use Twitkey\Models\User;
 
@@ -37,5 +38,30 @@ final class ApiController
             $rows = array_map(static fn(array $u): array => ['value' => (string)$u['username']], $rows);
         }
         Helpers::json(['ok' => true, 'items' => $rows]);
+    }
+
+    /**
+     * Serve uploaded avatars and banners through a validated local media endpoint.
+     */
+    public function media(string $file): void
+    {
+        $isCurrentUpload = preg_match('/^(avatar|banner)_[a-f0-9]{64}\.jpg$/', $file) === 1;
+        $isLegacyAvatar = preg_match('/^[a-f0-9]{64}\.jpg$/', $file) === 1;
+        if (!$isCurrentUpload && !$isLegacyAvatar) {
+            http_response_code(404);
+            return;
+        }
+
+        $dataDir = Database::instance()->dataDir();
+        $path = $isCurrentUpload ? $dataDir . '/uploads/' . $file : $dataDir . '/avatars/' . $file;
+        if (!is_file($path)) {
+            http_response_code(404);
+            return;
+        }
+
+        header('Content-Type: image/jpeg');
+        header('Cache-Control: public, max-age=31536000, immutable');
+        header('Content-Length: ' . filesize($path));
+        readfile($path);
     }
 }

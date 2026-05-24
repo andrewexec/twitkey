@@ -1,5 +1,11 @@
-<?php use Twitkey\Core\Helpers; ?>
-<section class="profile-header<?= (int)$profile['is_admin'] === 1 ? ' admin-profile' : '' ?>">
+<?php
+use Twitkey\Core\Helpers;
+$bannerUrl = Helpers::bannerUrl($profile);
+?>
+<section class="profile-header<?= (int)$profile['is_admin'] === 1 ? ' admin-profile' : '' ?><?= $bannerUrl ? ' has-banner' : '' ?>"<?= $bannerUrl ? ' style="--profile-banner: url(' . Helpers::h($bannerUrl) . ');"' : '' ?>>
+    <?php if ($bannerUrl): ?>
+        <div class="profile-banner" aria-hidden="true"></div>
+    <?php endif; ?>
     <?php if ((int)$profile['is_suspended'] === 1): ?>
         <div class="suspended-banner">This account has been suspended.</div>
     <?php endif; ?>

@@ -476,6 +476,19 @@ select {
     display: inline-block;
 }
 
+.image-badge {
+    width: 18px;
+    height: 18px;
+    margin-left: 4px;
+    vertical-align: middle;
+    object-fit: contain;
+    image-rendering: pixelated;
+}
+
+.admin-image-badge {
+    border-radius: 4px;
+}
+
 .badge-admin {
     background: var(--badge-admin);
     color: var(--badge-admin-text);
@@ -737,10 +750,32 @@ select {
     border-bottom: 1px solid var(--border-main);
     background: #fff;
     position: relative;
+    overflow: hidden;
 }
 
 .profile-header.admin-profile {
     background: repeating-linear-gradient(135deg, #fff5f0 0px, #fff5f0 10px, #fff 10px, #fff 20px);
+}
+
+.profile-header.has-banner {
+    padding-top: 128px;
+}
+
+.profile-header.has-banner > :not(.profile-banner) {
+    position: relative;
+    z-index: 1;
+}
+
+.profile-banner {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 120px;
+    background-image: var(--profile-banner);
+    background-position: center;
+    background-size: cover;
+    border-bottom: 1px solid var(--border-main);
 }
 
 .profile-avatar {

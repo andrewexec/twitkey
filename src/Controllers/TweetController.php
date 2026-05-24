@@ -139,6 +139,7 @@ final class TweetController
      */
     public function pendingNotes(): void
     {
+        CommunityNote::autoModerate();
         $user = Auth::requireLogin();
         if (!Helpers::eligibleForNotes($user)) {
             http_response_code(403);

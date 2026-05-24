@@ -19,6 +19,9 @@
     <label>Avatar
         <input type="file" name="avatar" accept="image/jpeg,image/png,image/gif,image/webp">
     </label>
+    <label>Profile banner
+        <input type="file" name="banner" accept="image/jpeg,image/png,image/gif,image/webp">
+    </label>
     <button type="submit" class="primary-button">Save settings</button>
 </form>
 

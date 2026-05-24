@@ -66,7 +66,8 @@ final class UserController
         Helpers::verifyCsrf();
         $user = Auth::requireActiveUser();
         try {
-            $avatar = $this->handleAvatar((int)$user['id']);
+            $avatar = $this->handleImageUpload('avatar', (int)$user['id'], 400, 400);
+            $banner = $this->handleImageUpload('banner', (int)$user['id'], 1500, 500);
             $website = trim((string)($_POST['website'] ?? ''));
             if ($website !== '' && !preg_match('~^https?://~i', $website)) {
                 $website = 'http://' . $website;
@@ -80,6 +81,7 @@ final class UserController
                 'location' => substr(trim((string)($_POST['location'] ?? '')), 0, 80),
                 'website' => substr($website, 0, 120),
                 'avatar' => $avatar,
+                'background' => $banner,
             ]);
             Auth::clearCache();
             Session::flash('success', 'Settings updated.');
@@ -183,24 +185,27 @@ final class UserController
     }
 
     /**
-     * Validate, resize, and store an avatar upload.
+     * Validate, resize, and store a user image upload.
      */
-    private function handleAvatar(int $userId): ?string
+    private function handleImageUpload(string $field, int $userId, int $maxWidth, int $maxHeight): ?string
     {
-        if (!isset($_FILES['avatar']) || (int)$_FILES['avatar']['error'] === UPLOAD_ERR_NO_FILE) {
+        if (!isset($_FILES[$field]) || (int)$_FILES[$field]['error'] === UPLOAD_ERR_NO_FILE) {
             return null;
         }
-        if ((int)$_FILES['avatar']['error'] !== UPLOAD_ERR_OK) {
-            throw new \RuntimeException('Avatar upload failed.');
+        if (!in_array($field, ['avatar', 'banner'], true)) {
+            throw new \InvalidArgumentException('Invalid upload field.');
+        }
+        if ((int)$_FILES[$field]['error'] !== UPLOAD_ERR_OK) {
+            throw new \RuntimeException(ucfirst($field) . ' upload failed.');
         }
         $maxBytes = (int)Helpers::env('MAX_AVATAR_SIZE_KB', '2048') * 1024;
-        if ((int)$_FILES['avatar']['size'] > $maxBytes) {
-            throw new \RuntimeException('Avatar is too large.');
+        if ((int)$_FILES[$field]['size'] > $maxBytes) {
+            throw new \RuntimeException(ucfirst($field) . ' is too large.');
         }
-        $tmp = (string)$_FILES['avatar']['tmp_name'];
+        $tmp = (string)$_FILES[$field]['tmp_name'];
         $info = getimagesize($tmp);
         if ($info === false || !in_array($info['mime'], ['image/jpeg', 'image/png', 'image/gif', 'image/webp'], true)) {
-            throw new \RuntimeException('Avatar must be a real JPEG, PNG, GIF, or WebP image.');
+            throw new \RuntimeException(ucfirst($field) . ' must be a real JPEG, PNG, GIF, or WebP image.');
         }
 
         $source = match ($info['mime']) {
@@ -211,20 +216,25 @@ final class UserController
             default => false,
         };
         if (!$source) {
-            throw new \RuntimeException('Avatar could not be processed.');
+            throw new \RuntimeException(ucfirst($field) . ' could not be processed.');
         }
 
         $width = imagesx($source);
         $height = imagesy($source);
-        $scale = min(400 / max(1, $width), 400 / max(1, $height), 1);
+        $scale = min($maxWidth / max(1, $width), $maxHeight / max(1, $height), 1);
         $newWidth = max(1, (int)floor($width * $scale));
         $newHeight = max(1, (int)floor($height * $scale));
         $image = imagecreatetruecolor($newWidth, $newHeight);
+        imagefill($image, 0, 0, imagecolorallocate($image, 255, 255, 255));
         imagecopyresampled($image, $source, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
 
-        $filename = hash('sha256', $userId . ':' . microtime(true) . ':' . random_bytes(8)) . '.jpg';
-        $path = Database::instance()->dataDir() . '/avatars/' . $filename;
-        imagejpeg($image, $path, 88);
+        $filename = $field . '_' . hash('sha256', $userId . ':' . $field . ':' . microtime(true) . ':' . bin2hex(random_bytes(16))) . '.jpg';
+        $path = Database::instance()->dataDir() . '/uploads/' . $filename;
+        if (!imagejpeg($image, $path, 88)) {
+            imagedestroy($source);
+            imagedestroy($image);
+            throw new \RuntimeException(ucfirst($field) . ' could not be saved.');
+        }
         imagedestroy($source);
         imagedestroy($image);
         return $filename;
