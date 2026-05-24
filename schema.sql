@@ -1,0 +1,161 @@
+-- USERS
+CREATE TABLE IF NOT EXISTS users (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    username     TEXT NOT NULL UNIQUE,
+    display_name TEXT NOT NULL,
+    email        TEXT NOT NULL UNIQUE,
+    password     TEXT NOT NULL,
+    bio          TEXT DEFAULT '',
+    location     TEXT DEFAULT '',
+    website      TEXT DEFAULT '',
+    avatar       TEXT DEFAULT NULL,
+    background   TEXT DEFAULT NULL,
+    role         TEXT DEFAULT 'user' CHECK(role IN ('user','admin')),
+    verified_type TEXT DEFAULT NULL CHECK(verified_type IN (NULL,'business','government')),
+    is_admin     INTEGER DEFAULT 0,
+    is_suspended INTEGER DEFAULT 0,
+    follower_count   INTEGER DEFAULT 0,
+    following_count  INTEGER DEFAULT 0,
+    tweet_count      INTEGER DEFAULT 0,
+    created_at   TEXT DEFAULT (datetime('now')),
+    updated_at   TEXT DEFAULT (datetime('now'))
+);
+
+-- TWEETS
+CREATE TABLE IF NOT EXISTS tweets (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    body         TEXT NOT NULL,
+    reply_to_id  INTEGER DEFAULT NULL REFERENCES tweets(id) ON DELETE SET NULL,
+    retweet_of_id INTEGER DEFAULT NULL REFERENCES tweets(id) ON DELETE SET NULL,
+    favorite_count  INTEGER DEFAULT 0,
+    retweet_count   INTEGER DEFAULT 0,
+    reply_count     INTEGER DEFAULT 0,
+    is_deleted   INTEGER DEFAULT 0,
+    created_at   TEXT DEFAULT (datetime('now'))
+);
+
+-- FOLLOWS
+CREATE TABLE IF NOT EXISTS follows (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    follower_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    following_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at   TEXT DEFAULT (datetime('now')),
+    UNIQUE(follower_id, following_id)
+);
+
+-- FAVORITES
+CREATE TABLE IF NOT EXISTS favorites (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    tweet_id   INTEGER NOT NULL REFERENCES tweets(id) ON DELETE CASCADE,
+    created_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(user_id, tweet_id)
+);
+
+-- RETWEETS
+CREATE TABLE IF NOT EXISTS retweets (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    tweet_id   INTEGER NOT NULL REFERENCES tweets(id) ON DELETE CASCADE,
+    created_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(user_id, tweet_id)
+);
+
+-- NOTIFICATIONS
+CREATE TABLE IF NOT EXISTS notifications (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    actor_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    type         TEXT NOT NULL CHECK(type IN ('follow','favorite','retweet','reply','mention','affiliation_invite','note_flag')),
+    tweet_id     INTEGER DEFAULT NULL REFERENCES tweets(id) ON DELETE CASCADE,
+    is_read      INTEGER DEFAULT 0,
+    created_at   TEXT DEFAULT (datetime('now'))
+);
+
+-- COMMUNITY NOTES
+CREATE TABLE IF NOT EXISTS community_notes (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    tweet_id     INTEGER NOT NULL REFERENCES tweets(id) ON DELETE CASCADE,
+    author_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    body         TEXT NOT NULL,
+    status       TEXT DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+    helpful_votes   INTEGER DEFAULT 0,
+    unhelpful_votes INTEGER DEFAULT 0,
+    reviewed_by  INTEGER DEFAULT NULL REFERENCES users(id),
+    reviewed_at  TEXT DEFAULT NULL,
+    created_at   TEXT DEFAULT (datetime('now'))
+);
+
+-- COMMUNITY NOTE VOTES
+CREATE TABLE IF NOT EXISTS community_note_votes (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    note_id  INTEGER NOT NULL REFERENCES community_notes(id) ON DELETE CASCADE,
+    user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    vote     TEXT NOT NULL CHECK(vote IN ('helpful','unhelpful')),
+    UNIQUE(note_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS community_note_flags (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    note_id  INTEGER NOT NULL REFERENCES community_notes(id) ON DELETE CASCADE,
+    user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    reason   TEXT DEFAULT '',
+    created_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(note_id, user_id)
+);
+
+-- AFFILIATIONS
+CREATE TABLE IF NOT EXISTS affiliations (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    business_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    affiliated_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status          TEXT DEFAULT 'pending' CHECK(status IN ('pending','accepted','revoked')),
+    created_at      TEXT DEFAULT (datetime('now')),
+    UNIQUE(business_id, affiliated_id)
+);
+
+-- DIRECT MESSAGES
+CREATE TABLE IF NOT EXISTS direct_messages (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    sender_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    recipient_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    body         TEXT NOT NULL,
+    is_read      INTEGER DEFAULT 0,
+    created_at   TEXT DEFAULT (datetime('now'))
+);
+
+-- HASHTAGS
+CREATE TABLE IF NOT EXISTS hashtags (
+    id   INTEGER PRIMARY KEY AUTOINCREMENT,
+    tag  TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS tweet_hashtags (
+    tweet_id   INTEGER NOT NULL REFERENCES tweets(id) ON DELETE CASCADE,
+    hashtag_id INTEGER NOT NULL REFERENCES hashtags(id) ON DELETE CASCADE,
+    PRIMARY KEY(tweet_id, hashtag_id)
+);
+
+-- ADMIN LOG
+CREATE TABLE IF NOT EXISTS admin_log (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    admin_id   INTEGER NOT NULL REFERENCES users(id),
+    action     TEXT NOT NULL,
+    target_type TEXT,
+    target_id  INTEGER,
+    note       TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_tweets_user_id ON tweets(user_id);
+CREATE INDEX IF NOT EXISTS idx_tweets_created_at ON tweets(created_at);
+CREATE INDEX IF NOT EXISTS idx_tweets_reply_to_id ON tweets(reply_to_id);
+CREATE INDEX IF NOT EXISTS idx_follows_follower_id ON follows(follower_id);
+CREATE INDEX IF NOT EXISTS idx_follows_following_id ON follows(following_id);
+CREATE INDEX IF NOT EXISTS idx_tweet_hashtags_hashtag_id ON tweet_hashtags(hashtag_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
+CREATE INDEX IF NOT EXISTS idx_favorites_user_id ON favorites(user_id);
+CREATE INDEX IF NOT EXISTS idx_direct_messages_pair ON direct_messages(sender_id, recipient_id);
+CREATE INDEX IF NOT EXISTS idx_community_notes_status ON community_notes(status);

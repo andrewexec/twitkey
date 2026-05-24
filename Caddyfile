@@ -1,0 +1,28 @@
+{
+    admin off
+    auto_https off
+}
+
+:80 {
+    root * /var/www/twitkey/public
+    php_fastcgi 127.0.0.1:9000
+    encode gzip
+
+    handle_path /avatars/* {
+        root * /data/avatars
+        file_server
+    }
+
+    @notFile {
+        not file
+    }
+    rewrite @notFile /index.php
+    file_server
+
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy strict-origin-when-cross-origin
+    }
+}
