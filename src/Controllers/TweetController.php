@@ -51,7 +51,7 @@ final class TweetController
         $currentUser = Auth::user();
         $scheduledForFuture = !empty($tweet['scheduled_at']) && strtotime((string)$tweet['scheduled_at']) > time();
         $canSeeScheduled = $currentUser && ((int)$currentUser['id'] === (int)$tweet['user_id'] || Auth::isAdmin());
-        if (((int)$tweet['is_deleted'] === 1 && !Auth::isAdmin()) || ($scheduledForFuture && !$canSeeScheduled)) {
+        if (((int)$tweet['is_deleted'] === 1 && !Auth::isAdmin()) || ($scheduledForFuture && !$canSeeScheduled) || !Tweet::canBeViewedBy($tweet, $currentUser)) {
             http_response_code(404);
             Helpers::render('errors/404', ['title' => 'Tweet Not Found'], true);
             return;
@@ -75,6 +75,10 @@ final class TweetController
         $user = Auth::requireActiveUser();
         $this->rateLimit((int)$user['id']);
         try {
+            $parent = Tweet::findWithUser((int)$id);
+            if (!$parent || !Tweet::canBeViewedBy($parent, $user)) {
+                throw new \RuntimeException('Forbidden.');
+            }
             $tweet = Tweet::create((int)$user['id'], (string)($_POST['body'] ?? ''), (int)$id);
             if (Helpers::wantsJson()) {
                 $html = Helpers::renderPartial('partials/tweet_row', ['tweet' => $tweet, 'currentUser' => $user]);
@@ -131,6 +135,10 @@ final class TweetController
         Helpers::verifyCsrf();
         $user = Auth::requireActiveUser();
         try {
+            $tweet = Tweet::findWithUser((int)$id);
+            if (!$tweet || !Tweet::canBeViewedBy($tweet, $user)) {
+                throw new \RuntimeException('Forbidden.');
+            }
             Tweet::votePoll((int)$id, (int)$option_id, (int)$user['id']);
             if (Helpers::wantsJson()) {
                 $tweet = Tweet::findWithUser((int)$id, true);

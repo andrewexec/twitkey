@@ -31,7 +31,27 @@ final class AdminController
                 'suspended' => (int)($db->one('SELECT COUNT(*) AS c FROM users WHERE is_suspended = 1')['c'] ?? 0),
             ],
             'logs' => $db->all('SELECT l.*, u.username FROM admin_log l JOIN users u ON u.id = l.admin_id ORDER BY l.created_at DESC LIMIT 10'),
+            'siteAlert' => $db->one('SELECT * FROM site_alerts ORDER BY updated_at DESC, id DESC LIMIT 1'),
         ]);
+    }
+
+    /**
+     * Update the global site alert banner.
+     */
+    public function siteAlert(): void
+    {
+        Helpers::verifyCsrf();
+        $admin = Auth::requireAdmin();
+        $message = substr(trim((string)($_POST['message'] ?? '')), 0, 240);
+        $active = isset($_POST['is_active']) && $message !== '' ? 1 : 0;
+        Database::instance()->execute('UPDATE site_alerts SET is_active = 0');
+        Database::instance()->execute(
+            'INSERT INTO site_alerts (message, is_active, updated_by, updated_at) VALUES (:message, :is_active, :updated_by, :updated_at)',
+            ['message' => $message, 'is_active' => $active, 'updated_by' => (int)$admin['id'], 'updated_at' => date('Y-m-d H:i:s')]
+        );
+        $this->log((int)$admin['id'], 'site_alert_update', 'site_alert', Database::instance()->lastInsertId());
+        Session::flash('success', 'Site alert updated.');
+        Helpers::redirect('/admin');
     }
 
     /**

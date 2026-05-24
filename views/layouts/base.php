@@ -1,11 +1,13 @@
 <?php
 use Twitkey\Core\Helpers;
 use Twitkey\Core\Session;
+use Twitkey\Core\Database;
 use Twitkey\Models\Notification;
 
 $appName = Helpers::env('APP_NAME', 'Twitkey');
 $unread = $currentUser ? Notification::unreadCount((int)$currentUser['id']) : 0;
 $notificationsLabel = $unread > 0 ? '(' . ($unread > 99 ? '99+' : (string)$unread) . ') Notifications' : 'Notifications';
+$siteAlert = Database::instance()->one('SELECT id, message, updated_at FROM site_alerts WHERE is_active = 1 AND message <> :empty ORDER BY updated_at DESC, id DESC LIMIT 1', ['empty' => '']);
 ?>
 <!doctype html>
 <html lang="en">
@@ -43,6 +45,10 @@ $notificationsLabel = $unread > 0 ? '(' . ($unread > 99 ? '99+' : (string)$unrea
             <?php endif; ?>
         </div>
     </div>
+</div>
+
+<div class="site-alert<?= $siteAlert ? '' : ' hidden' ?>" data-site-alert data-alert-id="<?= $siteAlert ? (int)$siteAlert['id'] : 0 ?>">
+    <div class="site-alert-inner" data-site-alert-message><?= $siteAlert ? Helpers::h($siteAlert['message']) : '' ?></div>
 </div>
 
 <div class="subheader">

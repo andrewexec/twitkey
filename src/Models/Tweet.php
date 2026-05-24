@@ -47,7 +47,7 @@ final class Tweet
      */
     public static function publicTimeline(int $page, ?int $lastId = null): array
     {
-        return self::feed('t.is_deleted = 0 AND u.is_suspended = 0 AND ' . self::publishedWhere(), [], $page, $lastId);
+        return self::feed('t.is_deleted = 0 AND u.is_suspended = 0 AND u.is_private = 0 AND u.post_visibility = :visibility AND ' . self::publishedWhere(), ['visibility' => 'public'], $page, $lastId);
     }
 
     /**
@@ -76,10 +76,15 @@ final class Tweet
      *
      * @return array<int, array<string, mixed>>
      */
-    public static function search(string $query, int $page): array
+    public static function search(string $query, int $page, ?int $viewerId = null): array
     {
         $term = '%' . $query . '%';
-        return self::feed('t.is_deleted = 0 AND u.is_suspended = 0 AND ' . self::publishedWhere() . ' AND lower(t.body) LIKE lower(:term)', ['term' => $term], $page, null);
+        $params = ['term' => $term];
+        $where = 't.is_deleted = 0 AND u.is_suspended = 0 AND ' . self::publishedWhere() . ' AND lower(t.body) LIKE lower(:term) AND ' . self::visibleWhere($viewerId);
+        if ($viewerId !== null) {
+            $params['viewer_id'] = $viewerId;
+        }
+        return self::feed($where, $params, $page, null);
     }
 
     /**
@@ -87,10 +92,15 @@ final class Tweet
      *
      * @return array<int, array<string, mixed>>
      */
-    public static function mentionsFor(string $username, int $page): array
+    public static function mentionsFor(string $username, int $page, ?int $viewerId = null): array
     {
         $term = '%@' . $username . '%';
-        return self::feed('t.is_deleted = 0 AND u.is_suspended = 0 AND ' . self::publishedWhere() . ' AND lower(t.body) LIKE lower(:term)', ['term' => strtolower($term)], $page, null);
+        $params = ['term' => strtolower($term)];
+        $where = 't.is_deleted = 0 AND u.is_suspended = 0 AND ' . self::publishedWhere() . ' AND lower(t.body) LIKE lower(:term) AND ' . self::visibleWhere($viewerId);
+        if ($viewerId !== null) {
+            $params['viewer_id'] = $viewerId;
+        }
+        return self::feed($where, $params, $page, null);
     }
 
     /**
@@ -106,6 +116,27 @@ final class Tweet
         }
         $rows = self::feed($where, ['id' => $id], 1, null, 1, true);
         return $rows[0] ?? null;
+    }
+
+    /**
+     * True when a viewer can access a tweet row.
+     *
+     * @param array<string, mixed> $tweet
+     * @param array<string, mixed>|null $viewer
+     */
+    public static function canBeViewedBy(array $tweet, ?array $viewer): bool
+    {
+        if ((int)($viewer['is_admin'] ?? 0) === 1 || ($viewer && (int)$viewer['id'] === (int)$tweet['user_id'])) {
+            return true;
+        }
+        if ((int)($tweet['is_suspended'] ?? 0) === 1) {
+            return false;
+        }
+        $followersOnly = (int)($tweet['is_private'] ?? 0) === 1 || ($tweet['post_visibility'] ?? 'public') === 'followers';
+        if (!$followersOnly) {
+            return true;
+        }
+        return $viewer !== null && Follow::isFollowing((int)$viewer['id'], (int)$tweet['user_id']);
     }
 
     /**
@@ -136,6 +167,10 @@ final class Tweet
             if (!$tweet) {
                 throw new \InvalidArgumentException('Tweet not found.');
             }
+            $viewer = User::find($userId);
+            if (!self::canBeViewedBy($tweet, $viewer)) {
+                throw new \RuntimeException('Forbidden.');
+            }
             $existing = $db->one('SELECT id FROM favorites WHERE user_id = :user_id AND tweet_id = :tweet_id', ['user_id' => $userId, 'tweet_id' => $tweetId]);
             if ($existing) {
                 $db->execute('DELETE FROM favorites WHERE id = :id', ['id' => (int)$existing['id']]);
@@ -164,6 +199,10 @@ final class Tweet
             $original = self::findWithUser($tweetId);
             if (!$original) {
                 throw new \InvalidArgumentException('Tweet not found.');
+            }
+            $viewer = User::find($userId);
+            if (!self::canBeViewedBy($original, $viewer)) {
+                throw new \RuntimeException('Forbidden.');
             }
             $existing = $db->one('SELECT id FROM retweets WHERE user_id = :user_id AND tweet_id = :tweet_id', ['user_id' => $userId, 'tweet_id' => $tweetId]);
             if ($existing) {
@@ -272,7 +311,7 @@ final class Tweet
         $stmt = Database::instance()->pdo()->prepare(
             "SELECT t.*,
                     u.username, u.display_name, u.email, u.bio, u.location, u.website, u.avatar, u.background,
-                    u.role, u.verified_type, u.is_verified, u.is_admin, u.is_system, u.is_suspended, u.follower_count, u.following_count, u.tweet_count,
+                    u.role, u.verified_type, u.is_verified, u.is_admin, u.is_system, u.is_suspended, u.is_private, u.follow_privacy, u.post_visibility, u.dm_privacy, u.follower_count, u.following_count, u.tweet_count,
                     u.created_at AS user_created_at,
                     (SELECT cn.body FROM community_notes cn WHERE cn.tweet_id = t.id AND cn.status = 'approved' ORDER BY cn.helpful_votes DESC, cn.id ASC LIMIT 1) AS approved_note_body,
                     (SELECT cn.id FROM community_notes cn WHERE cn.tweet_id = t.id AND cn.status = 'approved' ORDER BY cn.helpful_votes DESC, cn.id ASC LIMIT 1) AS approved_note_id
@@ -409,6 +448,17 @@ final class Tweet
         return Database::instance()->isMysql()
             ? '(t.scheduled_at IS NULL OR t.scheduled_at <= NOW())'
             : "(t.scheduled_at IS NULL OR t.scheduled_at <= datetime('now'))";
+    }
+
+    /**
+     * SQL condition for tweets visible to a viewer.
+     */
+    private static function visibleWhere(?int $viewerId): string
+    {
+        if ($viewerId === null) {
+            return '(u.is_private = 0 AND u.post_visibility = \'public\')';
+        }
+        return '(u.id = :viewer_id OR (u.is_private = 0 AND u.post_visibility = \'public\') OR u.id IN (SELECT following_id FROM follows WHERE follower_id = :viewer_id))';
     }
 
     /**

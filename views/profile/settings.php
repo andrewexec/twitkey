@@ -22,6 +22,33 @@
     <label>Profile banner
         <input type="file" name="banner" accept="image/jpeg,image/png,image/gif,image/webp">
     </label>
+    <div class="settings-section">
+        <h2>Privacy</h2>
+        <label class="checkbox-label">
+            <input type="checkbox" name="is_private" value="1"<?= (int)($user['is_private'] ?? 0) === 1 ? ' checked' : '' ?>>
+            Private account mode
+        </label>
+        <label>Who can follow you
+            <select name="follow_privacy">
+                <option value="everyone"<?= ($user['follow_privacy'] ?? 'everyone') === 'everyone' ? ' selected' : '' ?>>Anyone</option>
+                <option value="approve"<?= ($user['follow_privacy'] ?? 'everyone') === 'approve' ? ' selected' : '' ?>>People I approve</option>
+            </select>
+        </label>
+        <label>Who can see your posts
+            <select name="post_visibility">
+                <option value="public"<?= ($user['post_visibility'] ?? 'public') === 'public' ? ' selected' : '' ?>>Everyone</option>
+                <option value="followers"<?= ($user['post_visibility'] ?? 'public') === 'followers' ? ' selected' : '' ?>>Followers only</option>
+            </select>
+        </label>
+        <label>Who can message you
+            <select name="dm_privacy">
+                <option value="everyone"<?= ($user['dm_privacy'] ?? 'mutuals') === 'everyone' ? ' selected' : '' ?>>Anyone</option>
+                <option value="mutuals"<?= ($user['dm_privacy'] ?? 'mutuals') === 'mutuals' ? ' selected' : '' ?>>Mutual followers</option>
+                <option value="none"<?= ($user['dm_privacy'] ?? 'mutuals') === 'none' ? ' selected' : '' ?>>No one</option>
+            </select>
+        </label>
+        <div class="tool-hint">Private account mode forces approved follows and followers-only posts.</div>
+    </div>
     <button type="submit" class="primary-button">Save settings</button>
 </form>
 

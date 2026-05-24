@@ -57,9 +57,19 @@ final class ApiController
             $endpoint
         );
         $json = $this->fetchJson($endpoint);
-        $items = [];
+        $items = $this->extractGifItems($json);
+        if ($items === [] && Helpers::env('KLIPY_API_KEY', '') !== '') {
+            $fallback = 'https://api.klipy.com/api/v1/{key}/gifs/search?q={query}&per_page=12&rating=g';
+            $json = $this->fetchJson(str_replace(
+                ['{query}', '{key}'],
+                [rawurlencode($query), rawurlencode(Helpers::env('KLIPY_API_KEY', ''))],
+                $fallback
+            ));
+            $items = $this->extractGifItems($json);
+        }
+        $results = [];
 
-        foreach ($this->extractGifItems($json) as $item) {
+        foreach ($items as $item) {
             $url = $item['url'] ?? $item['gif'] ?? $item['media'] ?? null;
             if (is_array($url)) {
                 $url = $url['url'] ?? null;
@@ -67,16 +77,16 @@ final class ApiController
             if (!is_string($url) || !str_starts_with($url, 'https://')) {
                 continue;
             }
-            $items[] = [
+            $results[] = [
                 'url' => $url,
                 'title' => substr((string)($item['title'] ?? $item['name'] ?? 'GIF'), 0, 80),
             ];
-            if (count($items) >= 12) {
+            if (count($results) >= 12) {
                 break;
             }
         }
 
-        Helpers::json(['ok' => true, 'items' => $items]);
+        Helpers::json(['ok' => true, 'items' => $results]);
     }
 
     /**
@@ -140,6 +150,55 @@ final class ApiController
     }
 
     /**
+     * Return the active site alert for client polling.
+     */
+    public function siteAlert(): void
+    {
+        $alert = Database::instance()->one(
+            'SELECT id, message, is_active, updated_at FROM site_alerts WHERE is_active = 1 AND message <> :empty ORDER BY updated_at DESC, id DESC LIMIT 1',
+            ['empty' => '']
+        );
+        Helpers::json(['ok' => true, 'alert' => $alert]);
+    }
+
+    /**
+     * Proxy remote GIFs so older stored URLs are not blocked by browser hotlink rules.
+     */
+    public function gifProxy(): void
+    {
+        $url = (string)($_GET['url'] ?? '');
+        if (!filter_var($url, FILTER_VALIDATE_URL) || !str_starts_with($url, 'https://')) {
+            http_response_code(404);
+            return;
+        }
+        $host = strtolower((string)(parse_url($url, PHP_URL_HOST) ?: ''));
+        if ($host === '' || preg_match('/(^|\\.)(klipy\\.com|tenor\\.com|giphy\\.com|wikimedia\\.org|wikipedia\\.org)$/', $host) !== 1) {
+            http_response_code(404);
+            return;
+        }
+        $context = stream_context_create([
+            'http' => [
+                'timeout' => 5,
+                'header' => "User-Agent: Twitkey/1.0\r\nAccept: image/gif,image/webp,image/*,*/*\r\n",
+            ],
+        ]);
+        $body = @file_get_contents($url, false, $context);
+        if ($body === false || $body === '') {
+            http_response_code(404);
+            return;
+        }
+        $finfo = new \finfo(FILEINFO_MIME_TYPE);
+        $mime = $finfo->buffer($body) ?: 'image/gif';
+        if (!in_array($mime, ['image/gif', 'image/webp', 'image/png', 'image/jpeg'], true)) {
+            http_response_code(404);
+            return;
+        }
+        header('Content-Type: ' . $mime);
+        header('Cache-Control: public, max-age=86400');
+        echo $body;
+    }
+
+    /**
      * Fetch JSON from an external API with a short timeout.
      *
      * @return mixed
@@ -172,6 +231,24 @@ final class ApiController
             return [];
         }
         if (isset($json['data']) && is_array($json['data'])) {
+            if (isset($json['data']['data']) && is_array($json['data']['data'])) {
+                $items = [];
+                foreach ($json['data']['data'] as $row) {
+                    if (!is_array($row)) {
+                        continue;
+                    }
+                    $file = $row['file'] ?? [];
+                    if (is_array($file)) {
+                        foreach (['hd', 'md', 'sm', 'xs'] as $size) {
+                            if (isset($file[$size]['gif']['url']) && is_string($file[$size]['gif']['url'])) {
+                                $items[] = ['url' => $file[$size]['gif']['url'], 'title' => $row['title'] ?? 'GIF'];
+                                continue 2;
+                            }
+                        }
+                    }
+                }
+                return $items;
+            }
             $items = [];
             foreach ($json['data'] as $row) {
                 if (isset($row['images']['fixed_height']['url'])) {

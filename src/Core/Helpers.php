@@ -269,7 +269,8 @@ final class Helpers
     {
         $username = self::h($user['username'] ?? '');
         $display = self::h($user['display_name'] ?? $user['username'] ?? '');
-        return '<a href="/' . $username . '" class="username">' . $display . '</a>' . self::renderBadges($user);
+        $lock = (int)($user['is_private'] ?? 0) === 1 ? '<span class="lock-badge" title="Private account">🔒</span>' : '';
+        return '<a href="/' . $username . '" class="username">' . $display . '</a>' . self::renderBadges($user) . $lock;
     }
 
     /**
@@ -371,7 +372,7 @@ final class Helpers
              JOIN tweet_hashtags th ON th.hashtag_id = h.id
              JOIN tweets t ON t.id = th.tweet_id
              JOIN users u ON u.id = t.user_id
-             WHERE t.created_at >= {$cutoffSql} AND {$publishedSql} AND t.is_deleted = 0 AND u.is_suspended = 0
+             WHERE t.created_at >= {$cutoffSql} AND {$publishedSql} AND t.is_deleted = 0 AND u.is_suspended = 0 AND u.is_private = 0 AND u.post_visibility = 'public'
              GROUP BY h.id, h.tag
              ORDER BY count DESC, h.tag ASC
              LIMIT 10"

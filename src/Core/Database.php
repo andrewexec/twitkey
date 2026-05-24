@@ -258,11 +258,16 @@ final class Database
         $sql = preg_replace("/TEXT DEFAULT \\(datetime\\('now'\\)\\)/", 'DATETIME DEFAULT CURRENT_TIMESTAMP', $sql) ?? $sql;
         $sql = str_replace('TEXT DEFAULT NULL', 'VARCHAR(255) DEFAULT NULL', $sql);
         $sql = str_replace("TEXT DEFAULT ''", "VARCHAR(255) DEFAULT ''", $sql);
+        $sql = str_replace("TEXT NOT NULL DEFAULT ''", "VARCHAR(255) NOT NULL DEFAULT ''", $sql);
         $sql = str_replace('TEXT NOT NULL UNIQUE', 'VARCHAR(190) NOT NULL UNIQUE', $sql);
         $sql = str_replace('tag  TEXT NOT NULL UNIQUE', 'tag  VARCHAR(190) NOT NULL UNIQUE', $sql);
         $sql = str_replace('role         TEXT DEFAULT', 'role         VARCHAR(20) DEFAULT', $sql);
+        $sql = str_replace('follow_privacy TEXT DEFAULT', 'follow_privacy VARCHAR(20) DEFAULT', $sql);
+        $sql = str_replace('post_visibility TEXT DEFAULT', 'post_visibility VARCHAR(20) DEFAULT', $sql);
+        $sql = str_replace('dm_privacy TEXT DEFAULT', 'dm_privacy VARCHAR(20) DEFAULT', $sql);
         $sql = str_replace('status       TEXT DEFAULT', 'status       VARCHAR(20) DEFAULT', $sql);
         $sql = str_replace('status          TEXT DEFAULT', 'status          VARCHAR(20) DEFAULT', $sql);
+        $sql = str_replace('status TEXT DEFAULT', 'status VARCHAR(20) DEFAULT', $sql);
         $sql = str_replace('vote     TEXT NOT NULL', 'vote     VARCHAR(20) NOT NULL', $sql);
         $sql = str_replace('type         TEXT NOT NULL', 'type         VARCHAR(40) NOT NULL', $sql);
         $sql = str_replace('target_type TEXT', 'target_type VARCHAR(40)', $sql);
@@ -281,6 +286,16 @@ final class Database
         }
         if (!$this->columnExists('users', 'is_system')) {
             $this->pdo->exec('ALTER TABLE users ADD COLUMN is_system INTEGER DEFAULT 0');
+        }
+        foreach ([
+            'is_private' => 'INTEGER DEFAULT 0',
+            'follow_privacy' => "VARCHAR(20) DEFAULT 'everyone'",
+            'post_visibility' => "VARCHAR(20) DEFAULT 'public'",
+            'dm_privacy' => "VARCHAR(20) DEFAULT 'mutuals'",
+        ] as $column => $definition) {
+            if (!$this->columnExists('users', $column)) {
+                $this->pdo->exec('ALTER TABLE users ADD COLUMN ' . $column . ' ' . $definition);
+            }
         }
         foreach ([
             'scheduled_at' => 'TEXT DEFAULT NULL',
@@ -330,10 +345,30 @@ final class Database
                 created_at TEXT DEFAULT (datetime(\'now\')),
                 UNIQUE(poll_id, user_id)
             )',
+            'CREATE TABLE IF NOT EXISTS follow_requests (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                requester_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                target_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                status TEXT DEFAULT \'pending\',
+                created_at TEXT DEFAULT (datetime(\'now\')),
+                updated_at TEXT DEFAULT (datetime(\'now\')),
+                UNIQUE(requester_id, target_id)
+            )',
+            'CREATE TABLE IF NOT EXISTS site_alerts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                message TEXT NOT NULL DEFAULT \'\',
+                is_active INTEGER DEFAULT 0,
+                updated_by INTEGER DEFAULT NULL REFERENCES users(id),
+                created_at TEXT DEFAULT (datetime(\'now\')),
+                updated_at TEXT DEFAULT (datetime(\'now\'))
+            )',
             'CREATE INDEX IF NOT EXISTS idx_tweets_scheduled_at ON tweets(scheduled_at)',
             'CREATE INDEX IF NOT EXISTS idx_tweet_media_tweet_id ON tweet_media(tweet_id)',
             'CREATE INDEX IF NOT EXISTS idx_poll_options_poll_id ON poll_options(poll_id)',
             'CREATE INDEX IF NOT EXISTS idx_poll_votes_poll_id ON poll_votes(poll_id)',
+            'CREATE INDEX IF NOT EXISTS idx_follow_requests_target_status ON follow_requests(target_id, status)',
+            'CREATE INDEX IF NOT EXISTS idx_follow_requests_requester_status ON follow_requests(requester_id, status)',
+            'CREATE INDEX IF NOT EXISTS idx_site_alerts_active_updated ON site_alerts(is_active, updated_at)',
         ];
 
         foreach ($statements as $statement) {

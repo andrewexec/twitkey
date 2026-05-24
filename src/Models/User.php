@@ -83,7 +83,9 @@ final class User
         Database::instance()->execute(
             'UPDATE users
              SET display_name = :display_name, bio = :bio, location = :location, website = :website,
-                 avatar = COALESCE(:avatar, avatar), background = COALESCE(:background, background), updated_at = :updated_at
+                 avatar = COALESCE(:avatar, avatar), background = COALESCE(:background, background),
+                 is_private = :is_private, follow_privacy = :follow_privacy, post_visibility = :post_visibility,
+                 dm_privacy = :dm_privacy, updated_at = :updated_at
              WHERE id = :id',
             [
                 'display_name' => $fields['display_name'] ?? '',
@@ -92,10 +94,56 @@ final class User
                 'website' => $fields['website'] ?? '',
                 'avatar' => $fields['avatar'] ?? null,
                 'background' => $fields['background'] ?? null,
+                'is_private' => (int)($fields['is_private'] ?? 0),
+                'follow_privacy' => $fields['follow_privacy'] ?? 'everyone',
+                'post_visibility' => $fields['post_visibility'] ?? 'public',
+                'dm_privacy' => $fields['dm_privacy'] ?? 'mutuals',
                 'updated_at' => date('Y-m-d H:i:s'),
                 'id' => $id,
             ]
         );
+    }
+
+    /**
+     * True when a viewer can see a user's posts.
+     *
+     * @param array<string, mixed> $profile
+     * @param array<string, mixed>|null $viewer
+     */
+    public static function canViewPosts(array $profile, ?array $viewer): bool
+    {
+        if ((int)($profile['is_suspended'] ?? 0) === 1 && (int)($viewer['is_admin'] ?? 0) !== 1) {
+            return false;
+        }
+        if ((int)($viewer['is_admin'] ?? 0) === 1 || ($viewer && (int)$viewer['id'] === (int)$profile['id'])) {
+            return true;
+        }
+        $followersOnly = (int)($profile['is_private'] ?? 0) === 1 || ($profile['post_visibility'] ?? 'public') === 'followers';
+        if (!$followersOnly) {
+            return true;
+        }
+        return $viewer !== null && Follow::isFollowing((int)$viewer['id'], (int)$profile['id']);
+    }
+
+    /**
+     * True when a sender can message a recipient.
+     *
+     * @param array<string, mixed> $sender
+     * @param array<string, mixed> $recipient
+     */
+    public static function canMessage(array $sender, array $recipient): bool
+    {
+        if ((int)$sender['id'] === (int)$recipient['id']) {
+            return false;
+        }
+        if ((int)($recipient['is_suspended'] ?? 0) === 1 || (int)($sender['is_suspended'] ?? 0) === 1) {
+            return false;
+        }
+        return match (($recipient['dm_privacy'] ?? 'mutuals')) {
+            'everyone' => true,
+            'none' => false,
+            default => Follow::isMutual((int)$sender['id'], (int)$recipient['id']),
+        };
     }
 
     /**
@@ -109,6 +157,7 @@ final class User
         $stmt = Database::instance()->pdo()->prepare(
             'SELECT * FROM users
              WHERE is_suspended = 0
+               AND is_private = 0
                AND (lower(username) LIKE lower(:term) OR lower(display_name) LIKE lower(:term) OR lower(bio) LIKE lower(:term))
              ORDER BY follower_count DESC, username ASC
              LIMIT :limit'
@@ -128,7 +177,7 @@ final class User
     {
         $db = Database::instance();
         if ($currentUserId === null) {
-            $stmt = $db->pdo()->prepare('SELECT * FROM users WHERE is_suspended = 0 ORDER BY follower_count DESC, created_at DESC LIMIT :limit');
+            $stmt = $db->pdo()->prepare('SELECT * FROM users WHERE is_suspended = 0 AND is_private = 0 ORDER BY follower_count DESC, created_at DESC LIMIT :limit');
             $stmt->bindValue(':limit', $limit, \PDO::PARAM_INT);
             $stmt->execute();
             return $stmt->fetchAll();
@@ -138,6 +187,7 @@ final class User
             'SELECT * FROM users
              WHERE id <> :id
                AND is_suspended = 0
+               AND is_private = 0
                AND id NOT IN (SELECT following_id FROM follows WHERE follower_id = :id)
              ORDER BY follower_count DESC, created_at DESC
              LIMIT :limit'

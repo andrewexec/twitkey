@@ -12,6 +12,7 @@ $author = [
     'is_admin' => $tweet['is_admin'] ?? 0,
     'is_system' => $tweet['is_system'] ?? 0,
     'is_verified' => $tweet['is_verified'] ?? 0,
+    'is_private' => $tweet['is_private'] ?? 0,
     'verified_type' => $tweet['verified_type'] ?? null,
 ];
 $deleted = (int)($tweet['is_deleted'] ?? 0) === 1;
@@ -32,7 +33,11 @@ $favorited = $currentUser ? Tweet::isFavorited((int)$currentUser['id'], $tweetId
                 <a class="note-preview" href="/tweet/<?= $tweetId ?>" title="<?= Helpers::h(Helpers::truncate((string)$tweet['approved_note_body'], 120)) ?>">📋</a>
             <?php endif; ?>
             <?php if (!empty($tweet['gif_url'])): ?>
-                <div class="tweet-gif"><img src="<?= Helpers::h($tweet['gif_url']) ?>" alt="GIF attachment" loading="lazy"></div>
+                <div class="tweet-gif">
+                    <a href="<?= Helpers::h($tweet['gif_url']) ?>" target="_blank" rel="noopener">
+                        <img src="/gif_proxy?url=<?= rawurlencode((string)$tweet['gif_url']) ?>" alt="GIF attachment" loading="lazy">
+                    </a>
+                </div>
             <?php endif; ?>
             <?php if (!empty($tweet['media'])): ?>
                 <div class="tweet-media media-count-<?= count($tweet['media']) ?>">

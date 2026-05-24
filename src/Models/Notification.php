@@ -30,7 +30,7 @@ final class Notification
     {
         $stmt = Database::instance()->pdo()->prepare(
             'SELECT n.*, a.username AS actor_username, a.display_name AS actor_display_name, a.avatar AS actor_avatar,
-                    a.is_admin AS actor_is_admin, a.is_system AS actor_is_system, a.is_verified AS actor_is_verified, a.verified_type AS actor_verified_type, t.body AS tweet_body
+                    a.is_admin AS actor_is_admin, a.is_system AS actor_is_system, a.is_verified AS actor_is_verified, a.is_private AS actor_is_private, a.verified_type AS actor_verified_type, t.body AS tweet_body
              FROM notifications n
              JOIN users a ON a.id = n.actor_id
              LEFT JOIN tweets t ON t.id = n.tweet_id
@@ -58,6 +58,6 @@ final class Notification
     public static function unreadCount(int $userId): int
     {
         $row = Database::instance()->one('SELECT COUNT(*) AS count FROM notifications WHERE user_id = :id AND is_read = 0', ['id' => $userId]);
-        return (int)($row['count'] ?? 0);
+        return (int)($row['count'] ?? 0) + Follow::pendingCount($userId);
     }
 }

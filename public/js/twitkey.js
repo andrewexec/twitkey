@@ -135,7 +135,7 @@
                 button.disabled = true;
                 try {
                     const data = await jsonFetch(form.action, { method: 'POST', body: new FormData(form) });
-                    button.textContent = data.following ? 'Unfollow' : 'Follow';
+                    button.textContent = data.pending ? 'Requested' : (data.following ? 'Unfollow' : 'Follow');
                 } catch (error) {
                     button.textContent = old;
                     alert(error.message);
@@ -473,6 +473,38 @@
     const dmThread = document.querySelector('[data-dm-thread]');
     if (dmThread) {
         dmThread.scrollTop = dmThread.scrollHeight;
+    }
+
+    const siteAlert = document.querySelector('[data-site-alert]');
+    if (siteAlert) {
+        const message = siteAlert.querySelector('[data-site-alert-message]');
+        const refreshAlert = async () => {
+            try {
+                const data = await jsonFetch('/api/site_alert');
+                const alert = data.alert;
+                if (alert && alert.message) {
+                    siteAlert.dataset.alertId = String(alert.id || '0');
+                    if (message) {
+                        message.textContent = alert.message;
+                    }
+                    siteAlert.classList.remove('hidden');
+                } else {
+                    siteAlert.dataset.alertId = '0';
+                    if (message) {
+                        message.textContent = '';
+                    }
+                    siteAlert.classList.add('hidden');
+                }
+            } catch {
+                // Ignore transient polling failures; the next poll will retry.
+            }
+        };
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                refreshAlert();
+            }
+        });
+        setInterval(refreshAlert, 10000);
     }
 
     const usernameInput = document.querySelector('[data-username-check]');

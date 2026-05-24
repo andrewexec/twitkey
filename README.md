@@ -52,6 +52,8 @@ Docker Compose reads `.env` in two ways here: it uses `HTTP_PORT` and `HTTPS_POR
 - 140-character tweets, replies, classic RT retweets, favorites, follows, @replies, search, trends, profile pages, public and home timelines.
 - Polls, image attachments, Klipy-powered GIF search, map-picked locations, and scheduled posts from the classic compose box.
 - Direct messages, notifications, pagination, avatar uploads, and profile settings.
+- Private accounts, approved follow requests, follower-only posts, and message privacy controls.
+- Admin-managed site alert banner with live client refresh.
 - Community Notes with eligibility, helpful/unhelpful voting, automatic approval/rejection, admin moderation, and misleading-note flags.
 - Admin dashboard with user moderation, tweet moderation, note moderation, verification grants, suspensions, account deletion, and audit logging.
 - Verified Business and Verified Government badges rendered through the shared badge helper.

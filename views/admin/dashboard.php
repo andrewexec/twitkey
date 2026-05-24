@@ -15,6 +15,18 @@
     <div>Pending Notes: <strong><?= number_format((int)$stats['pending_notes']) ?></strong></div>
     <div>Suspended: <strong><?= number_format((int)$stats['suspended']) ?></strong></div>
 </div>
+<h2>Site Alert Banner</h2>
+<form action="/admin/site-alert" method="post" class="settings-form compact-form">
+    <?= Helpers::csrfField() ?>
+    <label>Alert message
+        <textarea name="message" maxlength="240"><?= Helpers::h($siteAlert['message'] ?? '') ?></textarea>
+    </label>
+    <label class="checkbox-label">
+        <input type="checkbox" name="is_active" value="1"<?= !empty($siteAlert) && (int)$siteAlert['is_active'] === 1 ? ' checked' : '' ?>>
+        Show alert banner
+    </label>
+    <button type="submit" class="primary-button">Update alert</button>
+</form>
 <h2>Recent Admin Actions</h2>
 <?php if ($logs === []): ?>
     <div class="empty-state">No admin actions logged.</div>

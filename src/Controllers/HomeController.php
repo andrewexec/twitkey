@@ -64,7 +64,7 @@ final class HomeController
     {
         $query = trim((string)($_GET['q'] ?? ''));
         $page = Helpers::page();
-        $tweets = $query === '' ? [] : Tweet::search($query, $page);
+        $tweets = $query === '' ? [] : Tweet::search($query, $page, Auth::id());
         $users = $query === '' ? [] : User::search(ltrim($query, '@#'), 8);
         Helpers::render('home/search', [
             'title' => 'Search',
@@ -104,7 +104,7 @@ final class HomeController
         if ($selected) {
             $messages = $db->all(
                 'SELECT dm.*, s.username AS sender_username, s.display_name AS sender_display_name, s.avatar AS sender_avatar,
-                        s.is_admin AS sender_is_admin, s.is_system AS sender_is_system, s.is_verified AS sender_is_verified, s.verified_type AS sender_verified_type
+                        s.is_admin AS sender_is_admin, s.is_system AS sender_is_system, s.is_verified AS sender_is_verified, s.is_private AS sender_is_private, s.verified_type AS sender_verified_type
                  FROM direct_messages dm
                  JOIN users s ON s.id = dm.sender_id
                  WHERE (dm.sender_id = :me AND dm.recipient_id = :them)
@@ -120,6 +120,7 @@ final class HomeController
             'conversations' => $conversations,
             'selected' => $selected,
             'messages' => $messages,
+            'canMessageSelected' => $selected ? User::canMessage($user, $selected) : false,
         ]);
     }
 
@@ -135,6 +136,10 @@ final class HomeController
         if (!$recipient || $body === '' || strlen($body) > 1000) {
             Session::flash('error', 'Message must be 1-1000 characters and recipient must exist.');
             Helpers::redirect('/direct_messages');
+        }
+        if (!User::canMessage($sender, $recipient)) {
+            Session::flash('error', 'You can only message this user if their message privacy allows it.');
+            Helpers::redirect('/direct_messages?user=' . rawurlencode((string)$recipient['username']));
         }
         Database::instance()->execute(
             'INSERT INTO direct_messages (sender_id, recipient_id, body) VALUES (:sender_id, :recipient_id, :body)',

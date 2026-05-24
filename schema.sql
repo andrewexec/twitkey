@@ -16,6 +16,10 @@ CREATE TABLE IF NOT EXISTS users (
     is_admin     INTEGER DEFAULT 0,
     is_system    INTEGER DEFAULT 0,
     is_suspended INTEGER DEFAULT 0,
+    is_private   INTEGER DEFAULT 0,
+    follow_privacy TEXT DEFAULT 'everyone' CHECK(follow_privacy IN ('everyone','approve')),
+    post_visibility TEXT DEFAULT 'public' CHECK(post_visibility IN ('public','followers')),
+    dm_privacy TEXT DEFAULT 'mutuals' CHECK(dm_privacy IN ('everyone','mutuals','none')),
     follower_count   INTEGER DEFAULT 0,
     following_count  INTEGER DEFAULT 0,
     tweet_count      INTEGER DEFAULT 0,
@@ -81,6 +85,16 @@ CREATE TABLE IF NOT EXISTS follows (
     following_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     created_at   TEXT DEFAULT (datetime('now')),
     UNIQUE(follower_id, following_id)
+);
+
+CREATE TABLE IF NOT EXISTS follow_requests (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    requester_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    target_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status       TEXT DEFAULT 'pending' CHECK(status IN ('pending','approved','declined')),
+    created_at   TEXT DEFAULT (datetime('now')),
+    updated_at   TEXT DEFAULT (datetime('now')),
+    UNIQUE(requester_id, target_id)
 );
 
 -- FAVORITES
@@ -187,12 +201,23 @@ CREATE TABLE IF NOT EXISTS admin_log (
     created_at TEXT DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS site_alerts (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    message    TEXT NOT NULL DEFAULT '',
+    is_active  INTEGER DEFAULT 0,
+    updated_by INTEGER DEFAULT NULL REFERENCES users(id),
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_tweets_user_id ON tweets(user_id);
 CREATE INDEX IF NOT EXISTS idx_tweets_created_at ON tweets(created_at);
 CREATE INDEX IF NOT EXISTS idx_tweets_scheduled_at ON tweets(scheduled_at);
 CREATE INDEX IF NOT EXISTS idx_tweets_reply_to_id ON tweets(reply_to_id);
 CREATE INDEX IF NOT EXISTS idx_follows_follower_id ON follows(follower_id);
 CREATE INDEX IF NOT EXISTS idx_follows_following_id ON follows(following_id);
+CREATE INDEX IF NOT EXISTS idx_follow_requests_target_status ON follow_requests(target_id, status);
+CREATE INDEX IF NOT EXISTS idx_follow_requests_requester_status ON follow_requests(requester_id, status);
 CREATE INDEX IF NOT EXISTS idx_tweet_hashtags_hashtag_id ON tweet_hashtags(hashtag_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
@@ -202,3 +227,4 @@ CREATE INDEX IF NOT EXISTS idx_community_notes_status ON community_notes(status)
 CREATE INDEX IF NOT EXISTS idx_tweet_media_tweet_id ON tweet_media(tweet_id);
 CREATE INDEX IF NOT EXISTS idx_poll_options_poll_id ON poll_options(poll_id);
 CREATE INDEX IF NOT EXISTS idx_poll_votes_poll_id ON poll_votes(poll_id);
+CREATE INDEX IF NOT EXISTS idx_site_alerts_active_updated ON site_alerts(is_active, updated_at);

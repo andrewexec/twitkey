@@ -31,7 +31,7 @@ final class UserController
         }
         $current = Auth::user();
         $isOwn = $current && (int)$current['id'] === (int)$profile['id'];
-        $canSeeTweets = (int)$profile['is_suspended'] === 0 || Auth::isAdmin();
+        $canSeeTweets = User::canViewPosts($profile, $current);
         $tweets = $canSeeTweets ? Tweet::forProfile((int)$profile['id'], $tab, Helpers::page(), Auth::isAdmin()) : [];
         Helpers::render('profile/show', [
             'title' => '@' . $profile['username'],
@@ -40,6 +40,9 @@ final class UserController
             'tab' => $tab,
             'isOwn' => $isOwn,
             'isFollowing' => Follow::isFollowing(Auth::id(), (int)$profile['id']),
+            'followPending' => Follow::isPending(Auth::id(), (int)$profile['id']),
+            'canSeeTweets' => $canSeeTweets,
+            'canMessage' => $current ? User::canMessage($current, $profile) : false,
             'page' => Helpers::page(),
         ]);
     }
@@ -75,6 +78,23 @@ final class UserController
             if ($website !== '' && !filter_var($website, FILTER_VALIDATE_URL)) {
                 throw new \InvalidArgumentException('Website must be a valid URL.');
             }
+            $isPrivate = isset($_POST['is_private']) ? 1 : 0;
+            $followPrivacy = (string)($_POST['follow_privacy'] ?? 'everyone');
+            $postVisibility = (string)($_POST['post_visibility'] ?? 'public');
+            $dmPrivacy = (string)($_POST['dm_privacy'] ?? 'mutuals');
+            if (!in_array($followPrivacy, ['everyone', 'approve'], true)) {
+                throw new \InvalidArgumentException('Invalid follow privacy setting.');
+            }
+            if (!in_array($postVisibility, ['public', 'followers'], true)) {
+                throw new \InvalidArgumentException('Invalid post visibility setting.');
+            }
+            if (!in_array($dmPrivacy, ['everyone', 'mutuals', 'none'], true)) {
+                throw new \InvalidArgumentException('Invalid message privacy setting.');
+            }
+            if ($isPrivate === 1) {
+                $followPrivacy = 'approve';
+                $postVisibility = 'followers';
+            }
             User::updateProfile((int)$user['id'], [
                 'display_name' => trim((string)($_POST['display_name'] ?? '')),
                 'bio' => substr(trim((string)($_POST['bio'] ?? '')), 0, 160),
@@ -82,6 +102,10 @@ final class UserController
                 'website' => substr($website, 0, 120),
                 'avatar' => $avatar,
                 'background' => $banner,
+                'is_private' => (string)$isPrivate,
+                'follow_privacy' => $followPrivacy,
+                'post_visibility' => $postVisibility,
+                'dm_privacy' => $dmPrivacy,
             ]);
             Auth::clearCache();
             Session::flash('success', 'Settings updated.');
@@ -147,6 +171,7 @@ final class UserController
             if (Helpers::wantsJson()) {
                 Helpers::json(['ok' => true] + $result);
             }
+            Session::flash('success', $result['pending'] ? 'Follow request sent.' : ($result['following'] ? 'You are now following @' . $target['username'] . '.' : 'Follow removed.'));
         } catch (\Throwable $e) {
             if (Helpers::wantsJson()) {
                 Helpers::json(['ok' => false, 'error' => $e->getMessage()], 400);
@@ -154,6 +179,22 @@ final class UserController
             Session::flash('error', $e->getMessage());
         }
         Helpers::redirect('/' . rawurlencode((string)$target['username']));
+    }
+
+    /**
+     * Approve or decline a pending follow request.
+     */
+    public function followRequestAction(string $id): void
+    {
+        Helpers::verifyCsrf();
+        $user = Auth::requireActiveUser();
+        try {
+            Follow::resolveRequest((int)$id, (int)$user['id'], (string)($_POST['action'] ?? ''));
+            Session::flash('success', 'Follow request updated.');
+        } catch (\Throwable $e) {
+            Session::flash('error', $e->getMessage());
+        }
+        Helpers::redirect($_SERVER['HTTP_REFERER'] ?? '/notifications');
     }
 
     /**
@@ -167,7 +208,9 @@ final class UserController
             Helpers::render('errors/404', ['title' => 'User Not Found'], true);
             return;
         }
-        Helpers::render('profile/list', ['title' => '@' . $profile['username'] . ' followers', 'profile' => $profile, 'users' => User::followers((int)$profile['id'], Helpers::page()), 'kind' => 'followers']);
+        $current = Auth::user();
+        $users = User::canViewPosts($profile, $current) ? User::followers((int)$profile['id'], Helpers::page()) : [];
+        Helpers::render('profile/list', ['title' => '@' . $profile['username'] . ' followers', 'profile' => $profile, 'users' => $users, 'kind' => 'followers']);
     }
 
     /**
@@ -181,7 +224,9 @@ final class UserController
             Helpers::render('errors/404', ['title' => 'User Not Found'], true);
             return;
         }
-        Helpers::render('profile/list', ['title' => '@' . $profile['username'] . ' following', 'profile' => $profile, 'users' => User::following((int)$profile['id'], Helpers::page()), 'kind' => 'following']);
+        $current = Auth::user();
+        $users = User::canViewPosts($profile, $current) ? User::following((int)$profile['id'], Helpers::page()) : [];
+        Helpers::render('profile/list', ['title' => '@' . $profile['username'] . ' following', 'profile' => $profile, 'users' => $users, 'kind' => 'following']);
     }
 
     /**
